@@ -67,6 +67,7 @@ function getViewportProfile() {
   return {
     portrait: state.height > state.width * 1.12,
     compact: Math.min(state.width, state.height) < 560,
+    phone: state.width <= 560 && state.height > state.width,
   };
 }
 
@@ -640,14 +641,14 @@ function getCakeLayout(progress) {
   const profile = getViewportProfile();
   const eased = easeOutCubic(progress);
   const finalZoom = profile.portrait
-    ? Math.min(state.width * 0.64, state.height * 0.34)
+    ? Math.min(state.width * 0.82, state.height * 0.31)
     : Math.min(state.width, state.height) * 0.48;
   const zoom = finalZoom * (0.17 + eased * 0.83);
   return {
     eased,
     zoom,
     cx: state.width * 0.5,
-    cy: state.height * ((profile.portrait ? 0.6 : 0.58) + (1 - eased) * 0.015),
+    cy: state.height * ((profile.portrait ? 0.52 : 0.58) + (1 - eased) * 0.015),
   };
 }
 
@@ -700,25 +701,35 @@ function assignTextShape(text, fontSize, scatter = true) {
   const isCountdown = text.length === 1;
   const isGreeting = text === "生日快乐";
   const profile = getViewportProfile();
-  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, isGreeting ? 2 : 3, isGreeting ? 2 : 18);
+  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, profile.phone ? 4 : isGreeting ? 2 : 3, profile.phone ? 4 : isGreeting ? 2 : 18);
   const points = shape.points;
   if (!points.length) return;
-  const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.46 : 0.28) : isGreeting ? (profile.portrait ? 0.76 : 0.68) : 0.72);
-  const targetHeight = state.height * (isCountdown ? (profile.portrait ? 0.32 : 0.4) : isGreeting ? (profile.portrait ? 0.42 : 0.3) : 0.34);
+  const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.62 : 0.28) : isGreeting ? (profile.portrait ? 0.82 : 0.68) : 0.72);
+  const targetHeight = state.height * (isCountdown ? (profile.portrait ? 0.28 : 0.4) : isGreeting ? (profile.portrait ? 0.38 : 0.3) : 0.34);
   const scale = Math.min(targetWidth / shape.width, targetHeight / shape.height);
   const cx = state.width * 0.5;
-  const cy = state.height * 0.48;
+  const cy = state.height * (profile.portrait ? 0.4 : 0.48);
+  const activeCount = profile.phone
+    ? Math.min(morphParticles.length, points.length, isCountdown ? 2600 : isGreeting ? 4200 : 3600)
+    : morphParticles.length;
   state.stageCue = `text:${text}`;
   for (let i = 0; i < morphParticles.length; i += 1) {
     const particle = morphParticles[i];
+    if (i >= activeCount) {
+      particle.cakePoint = null;
+      particle.tx = cx + rand(-state.width * 0.42, state.width * 0.42);
+      particle.ty = cy + rand(-state.height * 0.18, state.height * 0.18);
+      particle.stageAlpha = 0;
+      continue;
+    }
     const point = points[i % points.length];
     particle.cakePoint = null;
     particle.tx = cx + point.dx * scale + rand(-1.5, 1.5);
     particle.ty = cy + point.dy * scale + rand(-1.5, 1.5);
     particle.role = isCountdown ? "countdown" : "text";
-    particle.stageAlpha = isCountdown ? rand(0.72, 1) : isGreeting ? rand(0.82, 1) : rand(0.62, 0.94);
+    particle.stageAlpha = profile.phone ? rand(0.58, 0.86) : isCountdown ? rand(0.72, 1) : isGreeting ? rand(0.82, 1) : rand(0.62, 0.94);
     particle.color = isCountdown ? "rgba(132, 235, 255, 0.92)" : point.color;
-    particle.size = isCountdown ? rand(0.72, 1.58) : isGreeting ? rand(0.46, 1.08) : rand(0.85, 2.05);
+    particle.size = profile.phone ? rand(0.58, 1.1) : isCountdown ? rand(0.72, 1.58) : isGreeting ? rand(0.46, 1.08) : rand(0.85, 2.05);
     if (scatter) {
       const a = rand(0, Math.PI * 2);
       particle.vx += Math.cos(a) * rand(3, 10);
