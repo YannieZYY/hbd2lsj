@@ -1,11 +1,11 @@
 [
-  "./image-web/photo-01.jpg",
-  "./image-web/photo-02.jpg",
-  "./image-web/photo-03.jpg",
-  "./image-web/photo-04.jpg",
-  "./image-web/photo-05.jpg",
-  "./image-web/photo-06.jpg",
-  "./image-web/photo-07.jpg",
-  "./image-web/photo-08.jpg",
-  "./image-web/photo-09.jpg"
+  { "src": "./image-web/photo-01.jpg", "rotate": 90 },
+  { "src": "./image-web/photo-02.jpg", "rotate": 0 },
+  { "src": "./image-web/photo-03.jpg", "rotate": 0 },
+  { "src": "./image-web/photo-04.jpg", "rotate": 0 },
+  { "src": "./image-web/photo-05.jpg", "rotate": 0 },
+  { "src": "./image-web/photo-06.jpg", "rotate": 90 },
+  { "src": "./image-web/photo-07.jpg", "rotate": 0 },
+  { "src": "./image-web/photo-08.jpg", "rotate": 90 },
+  { "src": "./image-web/photo-09.jpg", "rotate": 90 }
 ]
