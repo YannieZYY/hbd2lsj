@@ -14,10 +14,6 @@ const explodeBtn = document.querySelector("#explodeBtn");
 const cakeBtn = document.querySelector("#cakeBtn");
 const moodBtn = document.querySelector("#moodBtn");
 const cameraBtn = document.querySelector("#cameraBtn");
-const viewExplodeBtn = document.querySelector("#viewExplodeBtn");
-const viewCakeBtn = document.querySelector("#viewCakeBtn");
-const viewMoodBtn = document.querySelector("#viewMoodBtn");
-const viewCameraBtn = document.querySelector("#viewCameraBtn");
 const statusEl = document.querySelector("#status");
 const video = document.querySelector("#camera");
 
@@ -64,6 +60,17 @@ let photoSources = [
   "image-web/photo-08.jpg",
   "image-web/photo-09.jpg",
 ];
+const fallbackPhotoSources = [
+  "image/IMG_1423.JPG",
+  "image/IMG_1057.JPG",
+  "image/微信图片_20260820130215_723_84.jpg",
+  "image/SHDR_147592025_1766752975308.JPG",
+  "image/微信图片_20260820130203_722_84.jpg",
+  "image/SHDR_147574342_1766678326119.JPG",
+  "image/微信图片_20260820130225_725_84.jpg",
+  "image/微信图片_20260820130222_724_84.png",
+  "image/微信图片_20260820130232_726_84.jpg",
+];
 const photoImages = [];
 const photoCards = [];
 const nebulaBits = [];
@@ -86,6 +93,9 @@ const perf = {
   fireworkScale: isSmallScreen || isCoarsePointer ? 0.42 : 0.72,
 };
 let lastFrameTime = 0;
+let launchPending = false;
+let photoLoadPromise = Promise.resolve();
+let lastMusicCheck = 0;
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -100,6 +110,18 @@ function playBackgroundMusic() {
   bgMusic.volume = 0.72;
   bgMusic.muted = false;
   bgMusic.play().catch(() => {});
+}
+
+function warmupBackgroundMusic() {
+  if (!bgMusic) return;
+  bgMusic.preload = "auto";
+  bgMusic.load();
+}
+
+function keepBackgroundMusicAlive(t) {
+  if (!bgMusic || state.stage === "intro" || t - lastMusicCheck < 1800) return;
+  lastMusicCheck = t;
+  if (bgMusic.paused) playBackgroundMusic();
 }
 
 function easeOutCubic(x) {
@@ -166,15 +188,18 @@ function initMorphParticles() {
 
 function initPhotoAssets() {
   photoImages.length = 0;
-  for (const src of photoSources) {
+  const loadTasks = [];
+  for (let i = 0; i < photoSources.length; i += 1) {
+    const src = photoSources[i];
     const image = new Image();
     image.decoding = "async";
-    image.onload = () => {
-      image.texture = createPhotoTexture(image);
-    };
+    image.loadPromise = preparePhotoImage(image, src, fallbackPhotoSources[i], i);
     image.src = src;
     photoImages.push(image);
+    loadTasks.push(image.loadPromise);
   }
+  photoLoadPromise = Promise.allSettled(loadTasks);
+  return photoLoadPromise;
 }
 
 function createPhotoTexture(image) {
@@ -189,6 +214,70 @@ function createPhotoTexture(image) {
   textureCtx.imageSmoothingQuality = "medium";
   textureCtx.drawImage(image, 0, 0, texture.width, texture.height);
   return texture;
+}
+
+function preparePhotoImage(image, src, fallbackSrc, index) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    let triedFallback = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve(image);
+    };
+
+    image.onload = async () => {
+      try {
+        await image.decode?.();
+      } catch (error) {}
+      image.texture = createPhotoTexture(image);
+      finish();
+    };
+
+    image.onerror = () => {
+      if (!triedFallback && fallbackSrc && fallbackSrc !== src) {
+        triedFallback = true;
+        image.src = fallbackSrc;
+        return;
+      }
+      image.texture = createMissingPhotoTexture(index);
+      finish();
+    };
+
+    window.setTimeout(() => {
+      if (!resolved && !image.complete) {
+        image.texture = createMissingPhotoTexture(index);
+        finish();
+      }
+    }, perf.mobile ? 4800 : 7000);
+  });
+}
+
+function createMissingPhotoTexture(index) {
+  const texture = document.createElement("canvas");
+  texture.width = 480;
+  texture.height = 640;
+  const textureCtx = texture.getContext("2d", { alpha: false });
+  const gradient = textureCtx.createLinearGradient(0, 0, texture.width, texture.height);
+  gradient.addColorStop(0, "#123447");
+  gradient.addColorStop(1, "#07141f");
+  textureCtx.fillStyle = gradient;
+  textureCtx.fillRect(0, 0, texture.width, texture.height);
+  textureCtx.strokeStyle = "rgba(120, 240, 255, 0.9)";
+  textureCtx.lineWidth = 8;
+  textureCtx.strokeRect(26, 26, texture.width - 52, texture.height - 52);
+  textureCtx.fillStyle = "rgba(180, 248, 255, 0.9)";
+  textureCtx.font = "700 44px sans-serif";
+  textureCtx.textAlign = "center";
+  textureCtx.fillText(`照片 ${index + 1}`, texture.width / 2, texture.height / 2);
+  return texture;
+}
+
+function waitForPhotos(maxWait = 1800) {
+  return Promise.race([
+    photoLoadPromise,
+    new Promise((resolve) => window.setTimeout(resolve, maxWait)),
+  ]);
 }
 
 async function loadPhotoConfig() {
@@ -322,7 +411,7 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.roundRect(-w / 2, -h / 2, w, h, 4);
   ctx.fill();
   ctx.stroke();
-  if (drawable && card.image?.complete && card.image.naturalWidth > 0) {
+  if (drawable && drawable.width > 0 && drawable.height > 0) {
     const inset = selected ? 8 : 4;
     ctx.drawImage(drawable, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
   }
@@ -799,8 +888,15 @@ function drawMorphParticles(alpha = 1) {
 }
 
 function launchGift() {
-  if (state.stage !== "intro") return;
+  if (state.stage !== "intro" || launchPending) return;
+  launchPending = true;
+  startGiftBtn.disabled = true;
   playBackgroundMusic();
+  window.setTimeout(beginGiftTimeline, perf.mobile ? 220 : 80);
+}
+
+function beginGiftTimeline() {
+  if (state.stage !== "intro") return;
   document.body.classList.add("gift-started");
   document.body.classList.remove("gift-ready", "photo-sphere-active", "cake-ready-active");
   state.stage = "countdown";
@@ -813,11 +909,13 @@ function launchGift() {
 }
 
 function restartGift() {
+  launchPending = false;
   fireworks.length = 0;
   rockets.length = 0;
   document.body.classList.remove("gift-ready", "photo-sphere-active", "cake-ready-active");
   state.stage = "intro";
   state.stageCue = "";
+  startGiftBtn.disabled = false;
   startGiftBtn.style.display = "";
   statusEl.textContent = "点击开启礼物，进入生日星河";
 }
@@ -899,8 +997,11 @@ function updateTimeline(t) {
   }
 }
 
-function scatterToPhotoWall() {
+async function scatterToPhotoWall() {
   if (state.stage !== "cake") return;
+  playBackgroundMusic();
+  statusEl.textContent = "照片正在加载";
+  await waitForPhotos(perf.mobile ? 2600 : 1000);
   document.body.classList.remove("cake-ready-active", "gift-ready");
   state.stage = "photoExplode";
   state.stageCue = "";
@@ -999,6 +1100,7 @@ function render(t = 0) {
     return;
   }
   lastFrameTime = t;
+  keepBackgroundMusicAlive(t);
   drawBackground(t);
   updateTimeline(t);
   if (state.hand.active) drawHandPointer();
@@ -1062,7 +1164,6 @@ function toggleMood() {
 function updateMoodButtons() {
   const label = state.tone === "noir" ? "彩色宇宙" : "黑白电影";
   moodBtn.textContent = label;
-  viewMoodBtn.textContent = label;
 }
 
 async function toggleCamera() {
@@ -1097,7 +1198,6 @@ function stopCamera() {
 function updateCameraButtons() {
   const label = state.cameraOn ? "关闭摄像头" : "开启摄像头";
   cameraBtn.textContent = label;
-  viewCameraBtn.textContent = label;
 }
 
 function trackHand() {
@@ -1221,19 +1321,16 @@ function zoomSelectedPhoto(event) {
 }
 
 function bindEvents() {
+  startGiftBtn.addEventListener("pointerdown", playBackgroundMusic, { passive: true });
   startGiftBtn.addEventListener("click", launchGift);
   document.addEventListener("pointerdown", playBackgroundMusic, { once: true });
   document.addEventListener("keydown", playBackgroundMusic, { once: true });
   photoWallBtn.addEventListener("click", scatterToPhotoWall);
   cakeMergeBtn.addEventListener("click", mergeToCake);
   explodeBtn.addEventListener("click", triggerExplode);
-  viewExplodeBtn.addEventListener("click", triggerExplode);
   cakeBtn.addEventListener("click", showCakeFinal);
-  viewCakeBtn.addEventListener("click", showCakeFinal);
   moodBtn.addEventListener("click", toggleMood);
-  viewMoodBtn.addEventListener("click", toggleMood);
   cameraBtn.addEventListener("click", toggleCamera);
-  viewCameraBtn.addEventListener("click", toggleCamera);
   photoInput.addEventListener("change", (event) => {
     const [file] = event.target.files;
     if (file) loadPhoto(file);
@@ -1255,6 +1352,7 @@ function bindEvents() {
 window.addEventListener("resize", fitCanvas);
 
 async function startApp() {
+  warmupBackgroundMusic();
   applySavedConfig();
   fitCanvas();
   initStars();

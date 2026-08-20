@@ -60,43 +60,12 @@ body.viewer-mode .app-shell {
 }
 
 .panel,
-.viewer-actions,
 #camera {
   display: none;
 }
 
 body.viewer-mode .stage-wrap {
   border-right: 0;
-}
-
-body.admin-mode .viewer-actions {
-  display: none;
-}
-
-body.viewer-mode:not(.gift-ready) .viewer-actions {
-  display: none;
-}
-
-body.gift-ready.viewer-mode .viewer-actions {
-  display: grid;
-}
-
-.viewer-actions {
-  position: absolute;
-  left: 50%;
-  bottom: 22px;
-  z-index: 3;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(82px, 1fr));
-  gap: 10px;
-  width: min(560px, calc(100% - 36px));
-  transform: translateX(-50%);
-  padding: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(8, 9, 15, 0.46);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(16px);
 }
 
 .admin-note {
@@ -493,10 +462,6 @@ body.admin-mode .start-gift {
     width: 120px;
   }
 
-  .viewer-actions {
-    grid-template-columns: repeat(2, 1fr);
-    bottom: 14px;
-  }
 }
 
 
@@ -517,7 +482,6 @@ body.admin-mode .start-gift {
 .brand,
 .status,
 .panel,
-.viewer-actions,
 #camera {
   display: none !important;
 }
