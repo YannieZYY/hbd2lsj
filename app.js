@@ -808,7 +808,7 @@ function assignTextShape(text, fontSize, scatter = true) {
   const isCountdown = text.length === 1;
   const isGreeting = text === "生日快乐";
   const profile = getViewportProfile();
-  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, profile.phone ? 4 : isGreeting ? 2 : 3, profile.phone ? 4 : isGreeting ? 2 : 18);
+  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, profile.phone ? 3 : isGreeting ? 2 : 3, profile.phone ? 3 : isGreeting ? 2 : 18);
   const points = shape.points;
   if (!points.length) return;
   const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.62 : 0.28) : isGreeting ? (profile.portrait ? 0.82 : 0.68) : 0.72);
@@ -817,7 +817,7 @@ function assignTextShape(text, fontSize, scatter = true) {
   const cx = state.width * 0.5;
   const cy = state.height * (profile.portrait ? 0.4 : 0.48);
   const activeCount = profile.phone
-    ? Math.min(morphParticles.length, points.length, isCountdown ? 2600 : isGreeting ? 4200 : 3600)
+    ? Math.min(morphParticles.length, points.length, isCountdown ? 3600 : isGreeting ? 6200 : 4600)
     : morphParticles.length;
   state.stageCue = `text:${text}`;
   for (let i = 0; i < morphParticles.length; i += 1) {
@@ -829,12 +829,17 @@ function assignTextShape(text, fontSize, scatter = true) {
       particle.stageAlpha = 0;
       continue;
     }
-    const point = points[i % points.length];
+    const pointIndex = activeCount >= points.length
+      ? i % points.length
+      : Math.floor((i / Math.max(1, activeCount - 1)) * (points.length - 1));
+    const point = points[pointIndex];
     particle.cakePoint = null;
     particle.tx = cx + point.dx * scale + rand(-1.5, 1.5);
     particle.ty = cy + point.dy * scale + rand(-1.5, 1.5);
     particle.role = isCountdown ? "countdown" : "text";
-    particle.stageAlpha = profile.phone ? rand(0.58, 0.86) : isCountdown ? rand(0.72, 1) : isGreeting ? rand(0.82, 1) : rand(0.62, 0.94);
+    particle.stageAlpha = profile.phone
+      ? isGreeting ? rand(0.82, 1) : rand(0.72, 0.96)
+      : isCountdown ? rand(0.72, 1) : isGreeting ? rand(0.82, 1) : rand(0.62, 0.94);
     particle.color = isCountdown ? "rgba(132, 235, 255, 0.92)" : point.color;
     particle.size = profile.phone ? rand(0.58, 1.1) : isCountdown ? rand(0.72, 1.58) : isGreeting ? rand(0.46, 1.08) : rand(0.85, 2.05);
     if (scatter) {
