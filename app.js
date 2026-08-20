@@ -1,4 +1,4 @@
-const canvas = document.querySelector("#scene");
+﻿const canvas = document.querySelector("#scene");
 const ctx = canvas.getContext("2d", { alpha: false });
 const bgMusic = document.querySelector("#bgMusic");
 const startGiftBtn = document.querySelector("#startGiftBtn");
@@ -39,15 +39,15 @@ const morphParticles = [];
 const fireworks = [];
 const rockets = [];
 let photoSources = [
-  "image-web/photo-01.jpg",
-  "image-web/photo-02.jpg",
-  "image-web/photo-03.jpg",
-  "image-web/photo-04.jpg",
-  "image-web/photo-05.jpg",
-  "image-web/photo-06.jpg",
-  "image-web/photo-07.jpg",
-  "image-web/photo-08.jpg",
-  "image-web/photo-09.jpg",
+  { src: "./image-web/photo-01.jpg", rotate: 0 },
+  { src: "./image-web/photo-02.jpg", rotate: 0 },
+  { src: "./image-web/photo-03.jpg", rotate: 0 },
+  { src: "./image-web/photo-04.jpg", rotate: 0 },
+  { src: "./image-web/photo-05.jpg", rotate: 0 },
+  { src: "./image-web/photo-06.jpg", rotate: 0 },
+  { src: "./image-web/photo-07.jpg", rotate: 0 },
+  { src: "./image-web/photo-08.jpg", rotate: 0 },
+  { src: "./image-web/photo-09.jpg", rotate: 0 },
 ];
 const photoImages = [];
 const photoCards = [];
@@ -61,6 +61,13 @@ function rand(min, max) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getViewportProfile() {
+  return {
+    portrait: state.height > state.width * 1.12,
+    compact: Math.min(state.width, state.height) < 560,
+  };
 }
 
 function playBackgroundMusic() {
@@ -132,9 +139,9 @@ function initMorphParticles() {
 
 function initPhotoAssets() {
   photoImages.length = 0;
-  for (const src of photoSources) {
+  for (const photo of photoSources) {
     const image = new Image();
-    image.src = src;
+    image.src = photo.src;
     photoImages.push(image);
   }
 }
@@ -145,7 +152,16 @@ async function loadPhotoConfig() {
     if (!response.ok) return;
     const sources = await response.json();
     if (Array.isArray(sources) && sources.length > 0) {
-      photoSources = sources.filter((src) => typeof src === "string" && src.trim());
+      photoSources = sources
+        .map((photo) => {
+          if (typeof photo === "string" && photo.trim()) return { src: photo, rotate: 0 };
+          if (!photo || typeof photo !== "object" || typeof photo.src !== "string" || !photo.src.trim()) return null;
+          return {
+            src: photo.src,
+            rotate: Number.isFinite(photo.rotate) ? photo.rotate : 0,
+          };
+        })
+        .filter(Boolean);
     }
   } catch (error) {
     // Keep the built-in photo list when local file restrictions block fetch.
@@ -162,6 +178,7 @@ function initPhotoSphere() {
     const radius = Math.sqrt(1 - y * y);
     photoCards.push({
       image: photoImages[i],
+      rotate: photoSources[i]?.rotate || 0,
       x: Math.cos(theta) * radius,
       y: y * 0.82,
       z: Math.sin(theta) * radius,
@@ -244,7 +261,8 @@ function drawPhotoExplosion(t) {
 function drawPhotoCard(card, index, t, radius) {
   const p = projectSpherePoint(card, radius);
   const selected = state.selectedPhoto === index;
-  const imageRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
+  const rawRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
+  const imageRatio = Math.abs(card.rotate) % 180 === 90 ? 1 / rawRatio : rawRatio;
   const selectedLong = Math.min(Math.min(state.width, state.height) * 0.42, 330);
   const baseLong = selected ? selectedLong * state.selectedZoom : 120;
   const baseW = imageRatio >= 1 ? baseLong : baseLong * imageRatio;
@@ -271,7 +289,16 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.stroke();
   if (card.image?.complete && card.image.naturalWidth > 0) {
     const inset = selected ? 8 : 4;
-    ctx.drawImage(card.image, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
+    const imageW = w - inset * 2;
+    const imageH = h - inset * 2;
+    ctx.save();
+    ctx.rotate((card.rotate * Math.PI) / 180);
+    if (Math.abs(card.rotate) % 180 === 90) {
+      ctx.drawImage(card.image, -imageH / 2, -imageW / 2, imageH, imageW);
+    } else {
+      ctx.drawImage(card.image, -imageW / 2, -imageH / 2, imageW, imageH);
+    }
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -428,8 +455,10 @@ function sampleCanvasPoints(step = 5, tint = null) {
 }
 
 function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900, sampleStep = 3, shadowBlur = 18) {
+  const profile = getViewportProfile();
+  const lines = text === "生日快乐" && profile.portrait ? ["生日", "快乐"] : [text];
   const w = 1000;
-  const h = 420;
+  const h = lines.length > 1 ? 720 : 420;
   shapeCanvas.width = w;
   shapeCanvas.height = h;
   shapeCtx.clearRect(0, 0, w, h);
@@ -439,17 +468,35 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
   do {
     shapeCtx.font = `${fontWeight} ${size}px Microsoft YaHei, PingFang SC, sans-serif`;
     size -= 4;
-  } while (shapeCtx.measureText(text).width > w * maxWidthRatio && size > 34);
+  } while (Math.max(...lines.map((line) => shapeCtx.measureText(line).width)) > w * maxWidthRatio && size > 34);
   shapeCtx.shadowColor = "rgba(66, 229, 255, 0.8)";
   shapeCtx.shadowBlur = shadowBlur;
   shapeCtx.fillStyle = "#8eeeff";
-  shapeCtx.fillText(text, w / 2, h / 2);
+  const lineHeight = size * 1.08;
+  const firstY = h / 2 - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, index) => {
+    shapeCtx.fillText(line, w / 2, firstY + index * lineHeight);
+  });
   shapeCtx.shadowBlur = 0;
-  return sampleCanvasPoints(text.length === 1 ? 2 : sampleStep).map((p) => ({
-    dx: p.x - w / 2,
-    dy: p.y - h / 2,
-    color: p.color,
-  }));
+  const sampled = sampleCanvasPoints(text.length === 1 ? 2 : sampleStep);
+  if (!sampled.length) return { points: [], width: 1, height: 1 };
+  const bounds = sampled.reduce((box, point) => ({
+    minX: Math.min(box.minX, point.x),
+    maxX: Math.max(box.maxX, point.x),
+    minY: Math.min(box.minY, point.y),
+    maxY: Math.max(box.maxY, point.y),
+  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  return {
+    points: sampled.map((p) => ({
+      dx: p.x - centerX,
+      dy: p.y - centerY,
+      color: p.color,
+    })),
+    width: Math.max(1, bounds.maxX - bounds.minX),
+    height: Math.max(1, bounds.maxY - bounds.minY),
+  };
 }
 
 function buildCakePoints() {
@@ -590,13 +637,17 @@ function drawSpinningStar3D(t, x, y, size) {
 }
 
 function getCakeLayout(progress) {
+  const profile = getViewportProfile();
   const eased = easeOutCubic(progress);
-  const zoom = Math.min(state.width, state.height) * (0.08 + eased * 0.4);
+  const finalZoom = profile.portrait
+    ? Math.min(state.width * 0.64, state.height * 0.34)
+    : Math.min(state.width, state.height) * 0.48;
+  const zoom = finalZoom * (0.17 + eased * 0.83);
   return {
     eased,
     zoom,
     cx: state.width * 0.5,
-    cy: state.height * (0.58 + (1 - eased) * 0.015),
+    cy: state.height * ((profile.portrait ? 0.6 : 0.58) + (1 - eased) * 0.015),
   };
 }
 
@@ -648,8 +699,13 @@ function drawCakeEntities(t, progress) {
 function assignTextShape(text, fontSize, scatter = true) {
   const isCountdown = text.length === 1;
   const isGreeting = text === "生日快乐";
-  const points = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, isGreeting ? 2 : 3, isGreeting ? 2 : 18);
-  const scale = Math.min(state.width / 1000, state.height / 520);
+  const profile = getViewportProfile();
+  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, isGreeting ? 2 : 3, isGreeting ? 2 : 18);
+  const points = shape.points;
+  if (!points.length) return;
+  const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.46 : 0.28) : isGreeting ? (profile.portrait ? 0.76 : 0.68) : 0.72);
+  const targetHeight = state.height * (isCountdown ? (profile.portrait ? 0.32 : 0.4) : isGreeting ? (profile.portrait ? 0.42 : 0.3) : 0.34);
+  const scale = Math.min(targetWidth / shape.width, targetHeight / shape.height);
   const cx = state.width * 0.5;
   const cy = state.height * 0.48;
   state.stageCue = `text:${text}`;
@@ -709,12 +765,21 @@ function retargetCurrentCue() {
   }
 }
 
-function updateCakeTargets(progress) {
+function updateCakeTargets(progress, t = performance.now()) {
   const { zoom, cx, cy } = getCakeLayout(progress);
+  const breathe = 1 + Math.sin(t * 0.0014) * 0.018;
+  const floatY = Math.sin(t * 0.0011) * zoom * 0.01;
+  const roll = Math.sin(t * 0.00062) * 0.018;
+  const pitch = Math.sin(t * 0.00048) * 0.014;
+  const cos = Math.cos(roll);
+  const sin = Math.sin(roll);
   for (const particle of morphParticles) {
     if (!particle.cakePoint) continue;
-    particle.tx = cx + particle.cakePoint.nx * zoom;
-    particle.ty = cy + particle.cakePoint.ny * zoom;
+    const baseX = particle.cakePoint.nx * zoom * breathe;
+    const baseY = particle.cakePoint.ny * zoom * (1 - pitch);
+    particle.tx = cx + baseX * cos - baseY * sin;
+    particle.ty = cy + baseX * sin + baseY * cos + floatY;
+    particle.stageAlpha = particle.cakePoint.role === "edge" ? 1 : 0.92 + Math.sin(t * 0.0022 + particle.jitter) * 0.08;
   }
 }
 
@@ -834,7 +899,7 @@ function updateTimeline(t) {
   }
   const progress = clamp((elapsed - 12.85) / 5.2, 0, 1);
   state.cakeProgress = progress;
-  updateCakeTargets(progress);
+  updateCakeTargets(progress, t);
   updateMorphParticles(t, 0.034 + progress * 0.03);
   drawMorphParticles(1);
   drawCakeEntities(t, progress);
