@@ -39,15 +39,15 @@ const morphParticles = [];
 const fireworks = [];
 const rockets = [];
 let photoSources = [
-  "./image-web/photo-01.jpg",
-  "./image-web/photo-02.jpg",
-  "./image-web/photo-03.jpg",
-  "./image-web/photo-04.jpg",
-  "./image-web/photo-05.jpg",
-  "./image-web/photo-06.jpg",
-  "./image-web/photo-07.jpg",
-  "./image-web/photo-08.jpg",
-  "./image-web/photo-09.jpg",
+  { src: "./image-web/photo-01.jpg", rotate: 0 },
+  { src: "./image-web/photo-02.jpg", rotate: 0 },
+  { src: "./image-web/photo-03.jpg", rotate: 0 },
+  { src: "./image-web/photo-04.jpg", rotate: 0 },
+  { src: "./image-web/photo-05.jpg", rotate: 0 },
+  { src: "./image-web/photo-06.jpg", rotate: 0 },
+  { src: "./image-web/photo-07.jpg", rotate: 0 },
+  { src: "./image-web/photo-08.jpg", rotate: 0 },
+  { src: "./image-web/photo-09.jpg", rotate: 0 },
 ];
 const photoImages = [];
 const photoCards = [];
@@ -132,9 +132,9 @@ function initMorphParticles() {
 
 function initPhotoAssets() {
   photoImages.length = 0;
-  for (const src of photoSources) {
+  for (const photo of photoSources) {
     const image = new Image();
-    image.src = src;
+    image.src = photo.src;
     photoImages.push(image);
   }
 }
@@ -145,7 +145,16 @@ async function loadPhotoConfig() {
     if (!response.ok) return;
     const sources = await response.json();
     if (Array.isArray(sources) && sources.length > 0) {
-      photoSources = sources.filter((src) => typeof src === "string" && src.trim());
+      photoSources = sources
+        .map((photo) => {
+          if (typeof photo === "string" && photo.trim()) return { src: photo, rotate: 0 };
+          if (!photo || typeof photo !== "object" || typeof photo.src !== "string" || !photo.src.trim()) return null;
+          return {
+            src: photo.src,
+            rotate: Number.isFinite(photo.rotate) ? photo.rotate : 0,
+          };
+        })
+        .filter(Boolean);
     }
   } catch (error) {
     // Keep the built-in photo list when local file restrictions block fetch.
@@ -162,6 +171,7 @@ function initPhotoSphere() {
     const radius = Math.sqrt(1 - y * y);
     photoCards.push({
       image: photoImages[i],
+      rotate: photoSources[i]?.rotate || 0,
       x: Math.cos(theta) * radius,
       y: y * 0.82,
       z: Math.sin(theta) * radius,
@@ -244,7 +254,8 @@ function drawPhotoExplosion(t) {
 function drawPhotoCard(card, index, t, radius) {
   const p = projectSpherePoint(card, radius);
   const selected = state.selectedPhoto === index;
-  const imageRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
+  const rawRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
+  const imageRatio = Math.abs(card.rotate) % 180 === 90 ? 1 / rawRatio : rawRatio;
   const selectedLong = Math.min(Math.min(state.width, state.height) * 0.42, 330);
   const baseLong = selected ? selectedLong * state.selectedZoom : 120;
   const baseW = imageRatio >= 1 ? baseLong : baseLong * imageRatio;
@@ -271,7 +282,16 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.stroke();
   if (card.image?.complete && card.image.naturalWidth > 0) {
     const inset = selected ? 8 : 4;
-    ctx.drawImage(card.image, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
+    const imageW = w - inset * 2;
+    const imageH = h - inset * 2;
+    ctx.save();
+    ctx.rotate((card.rotate * Math.PI) / 180);
+    if (Math.abs(card.rotate) % 180 === 90) {
+      ctx.drawImage(card.image, -imageH / 2, -imageW / 2, imageH, imageW);
+    } else {
+      ctx.drawImage(card.image, -imageW / 2, -imageH / 2, imageW, imageH);
+    }
+    ctx.restore();
   }
   ctx.restore();
 }
