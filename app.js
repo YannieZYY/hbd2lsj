@@ -39,21 +39,23 @@ const morphParticles = [];
 const fireworks = [];
 const rockets = [];
 let photoSources = [
-  { src: "./image-web/photo-01.jpg", rotate: 0 },
+  { src: "./image-web/photo-01.jpg", rotate: 90 },
   { src: "./image-web/photo-02.jpg", rotate: 0 },
   { src: "./image-web/photo-03.jpg", rotate: 0 },
   { src: "./image-web/photo-04.jpg", rotate: 0 },
   { src: "./image-web/photo-05.jpg", rotate: 0 },
-  { src: "./image-web/photo-06.jpg", rotate: 0 },
+  { src: "./image-web/photo-06.jpg", rotate: 90 },
   { src: "./image-web/photo-07.jpg", rotate: 0 },
-  { src: "./image-web/photo-08.jpg", rotate: 0 },
-  { src: "./image-web/photo-09.jpg", rotate: 0 },
+  { src: "./image-web/photo-08.jpg", rotate: 90 },
+  { src: "./image-web/photo-09.jpg", rotate: 90 },
 ];
 const photoImages = [];
 const photoCards = [];
 const nebulaBits = [];
 const shapeCanvas = document.createElement("canvas");
 const shapeCtx = shapeCanvas.getContext("2d", { willReadFrequently: true });
+const photoCanvas = document.createElement("canvas");
+const photoCtx = photoCanvas.getContext("2d");
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -157,9 +159,10 @@ async function loadPhotoConfig() {
         .map((photo) => {
           if (typeof photo === "string" && photo.trim()) return { src: photo, rotate: 0 };
           if (!photo || typeof photo !== "object" || typeof photo.src !== "string" || !photo.src.trim()) return null;
+          const rotate = Number(photo.rotate);
           return {
             src: photo.src,
-            rotate: Number.isFinite(photo.rotate) ? photo.rotate : 0,
+            rotate: Number.isFinite(rotate) ? rotate : 0,
           };
         })
         .filter(Boolean);
@@ -172,6 +175,7 @@ async function loadPhotoConfig() {
 function initPhotoSphere() {
   photoCards.length = 0;
   nebulaBits.length = 0;
+  const profile = getViewportProfile();
   const cardCount = photoSources.length;
   for (let i = 0; i < cardCount; i += 1) {
     const theta = i * 2.399963 + 0.34;
@@ -190,18 +194,19 @@ function initPhotoSphere() {
       sh: 0,
     });
   }
-  for (let i = 0; i < 2800; i += 1) {
+  const dustCount = profile.phone ? 3800 : 5400;
+  for (let i = 0; i < dustCount; i += 1) {
     const theta = rand(0, Math.PI * 2);
     const y = rand(-0.95, 0.95);
-    const outerDust = Math.random() > 0.82;
-    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.06, 1.42) : rand(0.72, 1.08));
+    const outerDust = Math.random() > 0.76;
+    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.03, 1.55) : rand(0.58, 1.12));
     nebulaBits.push({
       x: Math.cos(theta) * radius,
       y: y * rand(0.62, 1.05),
       z: Math.sin(theta) * radius,
-      size: outerDust ? rand(0.28, 0.9) : rand(0.48, 1.85),
-      hue: [186, 198, 218, 235, 172][Math.floor(Math.random() * 5)],
-      alpha: outerDust ? rand(0.1, 0.38) : rand(0.22, 0.9),
+      size: outerDust ? rand(0.24, 1.05) : rand(0.42, 1.95),
+      hue: [184, 190, 198, 212, 228, 242, 172][Math.floor(Math.random() * 7)],
+      alpha: outerDust ? rand(0.08, 0.42) : rand(0.18, 0.96),
       drift: rand(0, Math.PI * 2),
       outerDust,
     });
@@ -235,36 +240,130 @@ function projectSpherePoint(point, radius) {
 function assignPhotoExplosion() {
   const cx = state.width * 0.5;
   const cy = state.height * 0.5;
+  const profile = getViewportProfile();
   for (const particle of morphParticles) {
     const angle = rand(0, Math.PI * 2);
-    const distance = rand(Math.min(state.width, state.height) * 0.1, Math.max(state.width, state.height) * 0.72);
+    const distance = rand(
+      Math.min(state.width, state.height) * 0.06,
+      Math.min(state.width, state.height) * (profile.portrait ? 0.46 : 0.54),
+    );
     particle.cakePoint = null;
     particle.tx = cx + Math.cos(angle) * distance;
     particle.ty = cy + Math.sin(angle) * distance;
-    particle.vx += Math.cos(angle) * rand(8, 18);
-    particle.vy += Math.sin(angle) * rand(8, 18);
+    particle.vx += Math.cos(angle) * rand(4, 10);
+    particle.vy += Math.sin(angle) * rand(4, 10);
     particle.color = Math.random() > 0.42 ? "rgba(218,248,255,0.9)" : "rgba(38,104,255,0.8)";
-    particle.stageAlpha = rand(0.28, 0.88);
-    particle.size = rand(0.45, 1.7);
+    particle.stageAlpha = rand(0.22, 0.72);
+    particle.size = rand(0.42, profile.phone ? 1.25 : 1.55);
   }
 }
 
-function drawPhotoExplosion(t) {
-  updateMorphParticles(t, 0.004);
-  drawMorphParticles(0.7);
+function assignCakeGather() {
+  const { cx, cy, zoom } = getCakeLayout(1);
+  const profile = getViewportProfile();
+  const gatherRadius = zoom * (profile.portrait ? 0.16 : 0.13);
+  for (let i = 0; i < morphParticles.length; i += 1) {
+    const particle = morphParticles[i];
+    const angle = i * 0.021;
+    const radius = gatherRadius * Math.pow(i / morphParticles.length, 0.72);
+    particle.cakePoint = null;
+    particle.tx = cx + Math.cos(angle) * radius;
+    particle.ty = cy + Math.sin(angle) * radius * 0.58;
+    particle.vx += Math.cos(angle + Math.PI / 2) * rand(1.8, 5.8);
+    particle.vy += Math.sin(angle + Math.PI / 2) * rand(1.8, 5.8);
+    particle.color = Math.random() > 0.28 ? "rgba(206,250,255,0.96)" : "rgba(45,172,255,0.88)";
+    particle.stageAlpha = rand(0.62, 1);
+    particle.size = rand(0.55, profile.phone ? 1.22 : 1.65);
+  }
+}
+
+function drawCakeGather(t, progress) {
+  const eased = easeOutCubic(progress);
+  const { cx, cy, zoom } = getCakeLayout(1);
+  updateMorphParticles(t, 0.028 + eased * 0.052);
+  drawMorphParticles(0.88 + eased * 0.16);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const coreRadius = zoom * (0.16 + eased * 0.18);
+  const glow = ctx.createRadialGradient(cx, cy, 6, cx, cy, coreRadius);
+  glow.addColorStop(0, `rgba(212, 252, 255, ${0.32 + eased * 0.24})`);
+  glow.addColorStop(0.36, `rgba(70, 222, 255, ${0.18 + eased * 0.18})`);
+  glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, state.width, state.height);
+
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.003);
+  ctx.strokeStyle = `rgba(160, 248, 255, ${0.18 + eased * 0.32})`;
+  ctx.lineWidth = clamp(zoom * 0.006, 1, 2.4);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, zoom * (0.16 - eased * 0.04), zoom * (0.052 - eased * 0.012), 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPhotoExplosion(t, progress = 0) {
+  const eased = easeOutCubic(progress);
+  updateMorphParticles(t, 0.004 + eased * 0.008);
+  drawMorphParticles(0.64 * (1 - eased * 0.42));
   const glow = ctx.createRadialGradient(state.width * 0.5, state.height * 0.5, 10, state.width * 0.5, state.height * 0.5, Math.min(state.width, state.height) * 0.56);
-  glow.addColorStop(0, "rgba(57, 240, 255, 0.24)");
+  glow.addColorStop(0, `rgba(57, 240, 255, ${0.22 - eased * 0.06})`);
+  glow.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, state.width, state.height);
+  if (progress > 0.26) {
+    const sphereProgress = easeOutCubic((progress - 0.26) / 0.74);
+    drawPhotoSphere(t, sphereProgress, 0.38 + sphereProgress * 0.62);
+  }
+}
+
+function assignPhotoGather() {
+  const cx = state.width * 0.5;
+  const cy = state.height * 0.48;
+  const profile = getViewportProfile();
+  const maxRadius = Math.min(state.width, state.height) * (profile.portrait ? 0.3 : 0.22);
+  for (let i = 0; i < morphParticles.length; i += 1) {
+    const particle = morphParticles[i];
+    const turn = i * 0.023;
+    const radius = maxRadius * Math.pow(i / morphParticles.length, 0.62);
+    particle.cakePoint = null;
+    particle.tx = cx + Math.cos(turn) * radius;
+    particle.ty = cy + Math.sin(turn) * radius * 0.62;
+    particle.vx += Math.cos(turn + Math.PI / 2) * rand(2.5, 7.5);
+    particle.vy += Math.sin(turn + Math.PI / 2) * rand(2.5, 7.5);
+    particle.color = Math.random() > 0.34 ? "rgba(170,246,255,0.92)" : "rgba(52,136,255,0.84)";
+    particle.stageAlpha = rand(0.42, 0.96);
+    particle.size = rand(0.5, profile.phone ? 1.18 : 1.55);
+  }
+}
+
+function drawPhotoGather(t, progress) {
+  const eased = easeOutCubic(progress);
+  const cx = state.width * 0.5;
+  const cy = state.height * 0.48;
+  state.sphereRotY += 0.012 + eased * 0.02;
+  drawPhotoSphere(t, 1 - eased);
+  updateMorphParticles(t, 0.012 + eased * 0.04);
+  drawMorphParticles(0.45 + eased * 0.55);
+  const glow = ctx.createRadialGradient(cx, cy, 8, cx, cy, Math.min(state.width, state.height) * (0.22 + eased * 0.18));
+  glow.addColorStop(0, `rgba(170, 250, 255, ${0.3 + eased * 0.18})`);
+  glow.addColorStop(0.36, `rgba(44, 189, 255, ${0.16 + eased * 0.1})`);
   glow.addColorStop(1, "rgba(0, 0, 0, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, state.width, state.height);
 }
 
-function drawPhotoCard(card, index, t, radius) {
+function drawPhotoCard(card, index, t, radius, opacity = 1) {
   const p = projectSpherePoint(card, radius);
   const selected = state.selectedPhoto === index;
   const rawRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
   const imageRatio = Math.abs(card.rotate) % 180 === 90 ? 1 / rawRatio : rawRatio;
-  const selectedLong = Math.min(Math.min(state.width, state.height) * 0.42, 330);
+  const profile = getViewportProfile();
+  const selectedLong = Math.min(
+    Math.min(state.width, state.height) * (profile.phone ? 0.72 : 0.58),
+    profile.phone ? 360 : 460,
+  );
   const baseLong = selected ? selectedLong * state.selectedZoom : 120;
   const baseW = imageRatio >= 1 ? baseLong : baseLong * imageRatio;
   const baseH = imageRatio >= 1 ? baseLong / imageRatio : baseLong;
@@ -276,7 +375,7 @@ function drawPhotoCard(card, index, t, radius) {
   card.sw = w;
   card.sh = h;
   ctx.save();
-  ctx.globalAlpha = selected ? 1 : clamp(0.68 + p.z * 0.18, 0.42, 0.98);
+  ctx.globalAlpha = (selected ? 1 : clamp(0.68 + p.z * 0.18, 0.42, 0.98)) * opacity;
   ctx.translate(p.x, p.y);
   ctx.rotate(selected ? 0 : card.spin + Math.sin(t * 0.001 + index) * 0.04);
   ctx.shadowColor = selected ? "rgba(95, 240, 255, 0.9)" : "rgba(42, 220, 245, 0.5)";
@@ -292,16 +391,24 @@ function drawPhotoCard(card, index, t, radius) {
     const inset = selected ? 8 : 4;
     const imageW = w - inset * 2;
     const imageH = h - inset * 2;
-    ctx.save();
-    ctx.rotate((card.rotate * Math.PI) / 180);
-    if (Math.abs(card.rotate) % 180 === 90) {
-      ctx.drawImage(card.image, -imageH / 2, -imageW / 2, imageH, imageW);
-    } else {
-      ctx.drawImage(card.image, -imageW / 2, -imageH / 2, imageW, imageH);
-    }
-    ctx.restore();
+    ctx.drawImage(getDisplayPhoto(card), -imageW / 2, -imageH / 2, imageW, imageH);
   }
   ctx.restore();
+}
+
+function getDisplayPhoto(card) {
+  const rotate = ((card.rotate % 360) + 360) % 360;
+  if (!rotate) return card.image;
+  const quarterTurn = rotate === 90 || rotate === 270;
+  photoCanvas.width = quarterTurn ? card.image.naturalHeight : card.image.naturalWidth;
+  photoCanvas.height = quarterTurn ? card.image.naturalWidth : card.image.naturalHeight;
+  photoCtx.save();
+  photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+  photoCtx.translate(photoCanvas.width / 2, photoCanvas.height / 2);
+  photoCtx.rotate((rotate * Math.PI) / 180);
+  photoCtx.drawImage(card.image, -card.image.naturalWidth / 2, -card.image.naturalHeight / 2);
+  photoCtx.restore();
+  return photoCanvas;
 }
 
 function drawSphereShell(radius) {
@@ -358,14 +465,14 @@ function drawSphereShell(radius) {
   ctx.restore();
 }
 
-function drawPhotoSphere(t) {
+function drawPhotoSphere(t, opacity = 1, radiusScale = 1) {
   state.sphereRotY += state.dragging ? 0 : 0.0022;
-  const radius = Math.min(state.width, state.height) * 0.42;
+  const radius = Math.min(state.width, state.height) * 0.42 * radiusScale;
   const cx = state.width * 0.5;
   const cy = state.height * 0.52;
   const halo = ctx.createRadialGradient(cx, cy, radius * 0.06, cx, cy, radius * 1.08);
-  halo.addColorStop(0, "rgba(54, 236, 255, 0.14)");
-  halo.addColorStop(0.48, "rgba(24, 83, 255, 0.045)");
+  halo.addColorStop(0, `rgba(54, 236, 255, ${0.14 * opacity})`);
+  halo.addColorStop(0.48, `rgba(24, 83, 255, ${0.045 * opacity})`);
   halo.addColorStop(1, "rgba(0, 0, 0, 0)");
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, state.width, state.height);
@@ -378,7 +485,7 @@ function drawPhotoSphere(t) {
       y: bit.y,
       z: bit.z + Math.cos(t * 0.0005 + bit.drift) * 0.04,
     }, radius);
-    ctx.globalAlpha = clamp(bit.alpha * (0.48 + p.scale * 0.55), 0.08, 0.96);
+    ctx.globalAlpha = clamp(bit.alpha * (0.48 + p.scale * 0.55) * opacity, 0, 0.96);
     ctx.fillStyle = `hsla(${bit.hue}, 95%, 68%, 1)`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, bit.size * clamp(p.scale, 0.48, 1.35), 0, Math.PI * 2);
@@ -389,9 +496,9 @@ function drawPhotoSphere(t) {
 
   const ordered = photoCards.map((card, index) => ({ card, index, z: rotatePoint3D(card).z })).sort((a, b) => a.z - b.z);
   for (const item of ordered) {
-    if (item.index !== state.selectedPhoto) drawPhotoCard(item.card, item.index, t, radius);
+    if (item.index !== state.selectedPhoto) drawPhotoCard(item.card, item.index, t, radius, opacity);
   }
-  if (state.selectedPhoto >= 0) drawPhotoCard(photoCards[state.selectedPhoto], state.selectedPhoto, t, radius);
+  if (state.selectedPhoto >= 0) drawPhotoCard(photoCards[state.selectedPhoto], state.selectedPhoto, t, radius, opacity);
 }
 
 function drawBackground(t) {
@@ -851,9 +958,23 @@ function updateTimeline(t) {
   }
 
   const elapsed = (t - state.timelineStart) / 1000;
+  if (state.stage === "cakeGather") {
+    const progress = clamp(elapsed / 1.05, 0, 1);
+    drawCakeGather(t, progress);
+    if (progress >= 1) {
+      state.stage = "photoExplode";
+      state.stageCue = "";
+      state.timelineStart = performance.now();
+      assignPhotoExplosion();
+      statusEl.textContent = "蛋糕散开为照片墙";
+    }
+    return;
+  }
+
   if (state.stage === "photoExplode") {
-    drawPhotoExplosion(t);
-    if (elapsed > 1.15) {
+    const progress = clamp(elapsed / 2.05, 0, 1);
+    drawPhotoExplosion(t, progress);
+    if (progress >= 1) {
       state.stage = "photoSphere";
       document.body.classList.add("gift-ready", "photo-sphere-active");
       statusEl.textContent = "拖动旋转照片星球，点击照片放大";
@@ -863,6 +984,19 @@ function updateTimeline(t) {
 
   if (state.stage === "photoSphere") {
     drawPhotoSphere(t);
+    return;
+  }
+
+  if (state.stage === "photoGather") {
+    const progress = clamp(elapsed / 1.65, 0, 1);
+    drawPhotoGather(t, progress);
+    if (progress >= 1) {
+      state.stage = "cake";
+      state.stageCue = "";
+      state.timelineStart = performance.now() - 12850;
+      assignCakeShape();
+      statusEl.textContent = "照片星球正在聚合成蛋糕";
+    }
     return;
   }
 
@@ -924,13 +1058,13 @@ function updateTimeline(t) {
 function scatterToPhotoWall() {
   if (state.stage !== "cake") return;
   document.body.classList.remove("cake-ready-active", "gift-ready");
-  state.stage = "photoExplode";
+  state.stage = "cakeGather";
   state.stageCue = "";
   state.timelineStart = performance.now();
   state.selectedPhoto = -1;
   state.selectedZoom = 1;
-  statusEl.textContent = "蛋糕散开为照片墙";
-  assignPhotoExplosion();
+  statusEl.textContent = "蛋糕正在聚拢";
+  assignCakeGather();
 }
 
 function spawnRocket(t) {
@@ -1024,13 +1158,13 @@ function mergeToCake() {
   if (state.stage !== "photoSphere") return;
   document.body.classList.add("gift-started");
   document.body.classList.remove("photo-sphere-active", "gift-ready", "cake-ready-active");
-  state.stage = "cake";
+  state.stage = "photoGather";
   state.stageCue = "";
   state.selectedPhoto = -1;
   state.selectedZoom = 1;
-  state.timelineStart = performance.now() - 12850;
-  assignCakeShape();
-  statusEl.textContent = "照片星球正在聚合成蛋糕";
+  state.timelineStart = performance.now();
+  assignPhotoGather();
+  statusEl.textContent = "照片星球正在收回";
 }
 
 function getCanvasPoint(event) {
@@ -1080,7 +1214,7 @@ function endSphereDrag(event) {
   const hit = findPhotoAt(point.x, point.y);
   if (hit >= 0) {
     state.selectedPhoto = state.selectedPhoto === hit ? -1 : hit;
-    state.selectedZoom = 1.12;
+    state.selectedZoom = 1.34;
   } else {
     state.selectedPhoto = -1;
     state.selectedZoom = 1;
@@ -1090,7 +1224,7 @@ function endSphereDrag(event) {
 function zoomSelectedPhoto(event) {
   if (state.stage !== "photoSphere" || state.selectedPhoto < 0) return;
   event.preventDefault();
-  state.selectedZoom = clamp(state.selectedZoom + (event.deltaY < 0 ? 0.14 : -0.14), 0.72, 2.15);
+  state.selectedZoom = clamp(state.selectedZoom + (event.deltaY < 0 ? 0.18 : -0.18), 0.78, 2.7);
 }
 
 function bindEvents() {
