@@ -607,6 +607,41 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
   };
 }
 
+function drawTextGlow(text, alpha = 0.16) {
+  const profile = getViewportProfile();
+  const lines = text === "生日快乐" && profile.portrait ? ["生日", "快乐"] : [text];
+  const maxWidth = state.width * (text.length === 1 ? 0.64 : 0.82);
+  const maxHeight = state.height * (text.length === 1 ? 0.28 : 0.38);
+  let size = text.length === 1
+    ? clamp(state.width * (profile.portrait ? 0.7 : 0.26), 120, 320)
+    : clamp(state.width * (profile.portrait ? 0.28 : 0.11), 58, 138);
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  do {
+    ctx.font = `${text === "生日快乐" ? 600 : 900} ${size}px Microsoft YaHei, PingFang SC, sans-serif`;
+    const width = Math.max(...lines.map((line) => ctx.measureText(line).width));
+    const height = lines.length * size * 1.08;
+    if (width <= maxWidth && height <= maxHeight) break;
+    size -= 4;
+  } while (size > 36);
+
+  const cy = state.height * (profile.portrait ? 0.4 : 0.48);
+  const lineHeight = size * 1.08;
+  const firstY = cy - ((lines.length - 1) * lineHeight) / 2;
+  ctx.shadowColor = "rgba(112, 240, 255, 0.72)";
+  ctx.shadowBlur = text.length === 1 ? 12 : 8;
+  ctx.fillStyle = `rgba(138, 240, 255, ${alpha})`;
+  ctx.strokeStyle = `rgba(210, 252, 255, ${alpha * 0.72})`;
+  ctx.lineWidth = Math.max(1, size * 0.018);
+  lines.forEach((line, index) => {
+    const y = firstY + index * lineHeight;
+    ctx.fillText(line, state.width * 0.5, y);
+    ctx.strokeText(line, state.width * 0.5, y);
+  });
+  ctx.restore();
+}
+
 function buildCakePoints() {
   const points = [];
   const addEllipse = (cx, cy, rx, ry, count, palette) => {
@@ -808,7 +843,9 @@ function assignTextShape(text, fontSize, scatter = true) {
   const isCountdown = text.length === 1;
   const isGreeting = text === "生日快乐";
   const profile = getViewportProfile();
-  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, profile.phone ? 3 : isGreeting ? 2 : 3, profile.phone ? 3 : isGreeting ? 2 : 18);
+  const sampleStep = profile.phone && isCountdown ? 2 : profile.phone ? 3 : isGreeting ? 2 : 3;
+  const shadowBlur = profile.phone && isCountdown ? 10 : profile.phone ? 8 : isGreeting ? 2 : 18;
+  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, sampleStep, shadowBlur);
   const points = shape.points;
   if (!points.length) return;
   const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.62 : 0.28) : isGreeting ? (profile.portrait ? 0.82 : 0.68) : 0.72);
@@ -817,7 +854,7 @@ function assignTextShape(text, fontSize, scatter = true) {
   const cx = state.width * 0.5;
   const cy = state.height * (profile.portrait ? 0.4 : 0.48);
   const activeCount = profile.phone
-    ? Math.min(morphParticles.length, points.length, isCountdown ? 3600 : isGreeting ? 6200 : 4600)
+    ? Math.min(morphParticles.length, isCountdown ? 9000 : isGreeting ? 9800 : 5600)
     : morphParticles.length;
   state.stageCue = `text:${text}`;
   for (let i = 0; i < morphParticles.length; i += 1) {
@@ -829,19 +866,19 @@ function assignTextShape(text, fontSize, scatter = true) {
       particle.stageAlpha = 0;
       continue;
     }
-    const pointIndex = activeCount >= points.length
-      ? i % points.length
-      : Math.floor((i / Math.max(1, activeCount - 1)) * (points.length - 1));
+    const pointIndex = Math.floor((i / Math.max(1, activeCount - 1)) * (points.length - 1));
     const point = points[pointIndex];
     particle.cakePoint = null;
     particle.tx = cx + point.dx * scale + rand(-1.5, 1.5);
     particle.ty = cy + point.dy * scale + rand(-1.5, 1.5);
     particle.role = isCountdown ? "countdown" : "text";
     particle.stageAlpha = profile.phone
-      ? isGreeting ? rand(0.82, 1) : rand(0.72, 0.96)
+      ? isGreeting ? rand(0.9, 1) : rand(0.84, 1)
       : isCountdown ? rand(0.72, 1) : isGreeting ? rand(0.82, 1) : rand(0.62, 0.94);
     particle.color = isCountdown ? "rgba(132, 235, 255, 0.92)" : point.color;
-    particle.size = profile.phone ? rand(0.58, 1.1) : isCountdown ? rand(0.72, 1.58) : isGreeting ? rand(0.46, 1.08) : rand(0.85, 2.05);
+    particle.size = profile.phone
+      ? isCountdown ? rand(0.66, 1.24) : rand(0.62, 1.18)
+      : isCountdown ? rand(0.72, 1.58) : isGreeting ? rand(0.46, 1.08) : rand(0.85, 2.05);
     if (scatter) {
       const a = rand(0, Math.PI * 2);
       particle.vx += Math.cos(a) * rand(3, 10);
@@ -1013,6 +1050,7 @@ function updateTimeline(t) {
       assignTextShape(digit, 280, true);
     }
     updateMorphParticles(t, 0.021);
+    drawTextGlow(digit, 0.13);
     drawMorphParticles(1);
     return;
   }
@@ -1024,6 +1062,7 @@ function updateTimeline(t) {
       assignTextShape("生日快乐", 132, true);
     }
     updateMorphParticles(t, 0.019);
+    drawTextGlow("生日快乐", 0.18);
     drawMorphParticles(1);
     return;
   }
