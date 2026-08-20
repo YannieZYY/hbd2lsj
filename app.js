@@ -607,41 +607,6 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
   };
 }
 
-function drawTextGlow(text, alpha = 0.16) {
-  const profile = getViewportProfile();
-  const lines = text === "生日快乐" && profile.portrait ? ["生日", "快乐"] : [text];
-  const maxWidth = state.width * (text.length === 1 ? 0.64 : 0.82);
-  const maxHeight = state.height * (text.length === 1 ? 0.28 : 0.38);
-  let size = text.length === 1
-    ? clamp(state.width * (profile.portrait ? 0.7 : 0.26), 120, 320)
-    : clamp(state.width * (profile.portrait ? 0.28 : 0.11), 58, 138);
-  ctx.save();
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  do {
-    ctx.font = `${text === "生日快乐" ? 600 : 900} ${size}px Microsoft YaHei, PingFang SC, sans-serif`;
-    const width = Math.max(...lines.map((line) => ctx.measureText(line).width));
-    const height = lines.length * size * 1.08;
-    if (width <= maxWidth && height <= maxHeight) break;
-    size -= 4;
-  } while (size > 36);
-
-  const cy = state.height * (profile.portrait ? 0.4 : 0.48);
-  const lineHeight = size * 1.08;
-  const firstY = cy - ((lines.length - 1) * lineHeight) / 2;
-  ctx.shadowColor = "rgba(112, 240, 255, 0.72)";
-  ctx.shadowBlur = text.length === 1 ? 12 : 8;
-  ctx.fillStyle = `rgba(138, 240, 255, ${alpha})`;
-  ctx.strokeStyle = `rgba(210, 252, 255, ${alpha * 0.72})`;
-  ctx.lineWidth = Math.max(1, size * 0.018);
-  lines.forEach((line, index) => {
-    const y = firstY + index * lineHeight;
-    ctx.fillText(line, state.width * 0.5, y);
-    ctx.strokeText(line, state.width * 0.5, y);
-  });
-  ctx.restore();
-}
-
 function buildCakePoints() {
   const points = [];
   const addEllipse = (cx, cy, rx, ry, count, palette) => {
@@ -1050,7 +1015,6 @@ function updateTimeline(t) {
       assignTextShape(digit, 280, true);
     }
     updateMorphParticles(t, 0.021);
-    drawTextGlow(digit, 0.13);
     drawMorphParticles(1);
     return;
   }
@@ -1062,7 +1026,6 @@ function updateTimeline(t) {
       assignTextShape("生日快乐", 132, true);
     }
     updateMorphParticles(t, 0.019);
-    drawTextGlow("生日快乐", 0.18);
     drawMorphParticles(1);
     return;
   }
