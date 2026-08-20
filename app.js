@@ -63,6 +63,13 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function getViewportProfile() {
+  return {
+    portrait: state.height > state.width * 1.12,
+    compact: Math.min(state.width, state.height) < 560,
+  };
+}
+
 function playBackgroundMusic() {
   if (!bgMusic) return;
   bgMusic.volume = 0.72;
@@ -448,8 +455,10 @@ function sampleCanvasPoints(step = 5, tint = null) {
 }
 
 function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900, sampleStep = 3, shadowBlur = 18) {
+  const profile = getViewportProfile();
+  const lines = text === "生日快乐" && profile.portrait ? ["生日", "快乐"] : [text];
   const w = 1000;
-  const h = 420;
+  const h = lines.length > 1 ? 720 : 420;
   shapeCanvas.width = w;
   shapeCanvas.height = h;
   shapeCtx.clearRect(0, 0, w, h);
@@ -459,17 +468,35 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
   do {
     shapeCtx.font = `${fontWeight} ${size}px Microsoft YaHei, PingFang SC, sans-serif`;
     size -= 4;
-  } while (shapeCtx.measureText(text).width > w * maxWidthRatio && size > 34);
+  } while (Math.max(...lines.map((line) => shapeCtx.measureText(line).width)) > w * maxWidthRatio && size > 34);
   shapeCtx.shadowColor = "rgba(66, 229, 255, 0.8)";
   shapeCtx.shadowBlur = shadowBlur;
   shapeCtx.fillStyle = "#8eeeff";
-  shapeCtx.fillText(text, w / 2, h / 2);
+  const lineHeight = size * 1.08;
+  const firstY = h / 2 - ((lines.length - 1) * lineHeight) / 2;
+  lines.forEach((line, index) => {
+    shapeCtx.fillText(line, w / 2, firstY + index * lineHeight);
+  });
   shapeCtx.shadowBlur = 0;
-  return sampleCanvasPoints(text.length === 1 ? 2 : sampleStep).map((p) => ({
-    dx: p.x - w / 2,
-    dy: p.y - h / 2,
-    color: p.color,
-  }));
+  const sampled = sampleCanvasPoints(text.length === 1 ? 2 : sampleStep);
+  if (!sampled.length) return { points: [], width: 1, height: 1 };
+  const bounds = sampled.reduce((box, point) => ({
+    minX: Math.min(box.minX, point.x),
+    maxX: Math.max(box.maxX, point.x),
+    minY: Math.min(box.minY, point.y),
+    maxY: Math.max(box.maxY, point.y),
+  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  return {
+    points: sampled.map((p) => ({
+      dx: p.x - centerX,
+      dy: p.y - centerY,
+      color: p.color,
+    })),
+    width: Math.max(1, bounds.maxX - bounds.minX),
+    height: Math.max(1, bounds.maxY - bounds.minY),
+  };
 }
 
 function buildCakePoints() {
@@ -610,13 +637,17 @@ function drawSpinningStar3D(t, x, y, size) {
 }
 
 function getCakeLayout(progress) {
+  const profile = getViewportProfile();
   const eased = easeOutCubic(progress);
-  const zoom = Math.min(state.width, state.height) * (0.08 + eased * 0.4);
+  const finalZoom = profile.portrait
+    ? Math.min(state.width * 0.64, state.height * 0.34)
+    : Math.min(state.width, state.height) * 0.48;
+  const zoom = finalZoom * (0.17 + eased * 0.83);
   return {
     eased,
     zoom,
     cx: state.width * 0.5,
-    cy: state.height * (0.58 + (1 - eased) * 0.015),
+    cy: state.height * ((profile.portrait ? 0.6 : 0.58) + (1 - eased) * 0.015),
   };
 }
 
@@ -668,8 +699,13 @@ function drawCakeEntities(t, progress) {
 function assignTextShape(text, fontSize, scatter = true) {
   const isCountdown = text.length === 1;
   const isGreeting = text === "生日快乐";
-  const points = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, isGreeting ? 2 : 3, isGreeting ? 2 : 18);
-  const scale = Math.min(state.width / 1000, state.height / 520);
+  const profile = getViewportProfile();
+  const shape = buildTextPoints(text, fontSize, 0.82, isGreeting ? 500 : 900, isGreeting ? 2 : 3, isGreeting ? 2 : 18);
+  const points = shape.points;
+  if (!points.length) return;
+  const targetWidth = state.width * (isCountdown ? (profile.portrait ? 0.46 : 0.28) : isGreeting ? (profile.portrait ? 0.76 : 0.68) : 0.72);
+  const targetHeight = state.height * (isCountdown ? (profile.portrait ? 0.32 : 0.4) : isGreeting ? (profile.portrait ? 0.42 : 0.3) : 0.34);
+  const scale = Math.min(targetWidth / shape.width, targetHeight / shape.height);
   const cx = state.width * 0.5;
   const cy = state.height * 0.48;
   state.stageCue = `text:${text}`;
