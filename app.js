@@ -10,10 +10,6 @@ const nameInput = document.querySelector("#nameInput");
 const letterInput = document.querySelector("#letterInput");
 const zoomRange = document.querySelector("#zoomRange");
 const sparkRange = document.querySelector("#sparkRange");
-const explodeBtn = document.querySelector("#explodeBtn");
-const cakeBtn = document.querySelector("#cakeBtn");
-const moodBtn = document.querySelector("#moodBtn");
-const cameraBtn = document.querySelector("#cameraBtn");
 const statusEl = document.querySelector("#status");
 const video = document.querySelector("#camera");
 
@@ -87,7 +83,7 @@ const perf = {
   targetFps: isSmallScreen || isCoarsePointer || prefersReducedMotion ? 30 : 60,
   particleCount: isSmallScreen || isCoarsePointer ? 5200 : 9800,
   starCount: isSmallScreen || isCoarsePointer ? 120 : 240,
-  nebulaCount: isSmallScreen || isCoarsePointer ? 360 : 900,
+  nebulaCount: isSmallScreen || isCoarsePointer ? 760 : 1300,
   introAuraCount: isSmallScreen || isCoarsePointer ? 72 : 160,
   photoTextureLong: isSmallScreen || isCoarsePointer ? 720 : 1200,
   fireworkScale: isSmallScreen || isCoarsePointer ? 0.42 : 0.72,
@@ -148,8 +144,6 @@ function saveConfig() {
 }
 
 function applySavedConfig() {
-  updateMoodButtons();
-  updateCameraButtons();
 }
 
 function initStars() {
@@ -316,15 +310,15 @@ function initPhotoSphere() {
   for (let i = 0; i < perf.nebulaCount; i += 1) {
     const theta = rand(0, Math.PI * 2);
     const y = rand(-0.95, 0.95);
-    const outerDust = Math.random() > 0.82;
-    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.06, 1.42) : rand(0.72, 1.08));
+    const outerDust = Math.random() > 0.9;
+    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.02, 1.18) : rand(0.58, 1.03));
     nebulaBits.push({
       x: Math.cos(theta) * radius,
       y: y * rand(0.62, 1.05),
       z: Math.sin(theta) * radius,
-      size: outerDust ? rand(0.28, 0.9) : rand(0.48, 1.85),
+      size: outerDust ? rand(0.28, 0.82) : rand(0.55, 1.95),
       hue: [186, 198, 218, 235, 172][Math.floor(Math.random() * 5)],
-      alpha: outerDust ? rand(0.1, 0.38) : rand(0.22, 0.9),
+      alpha: outerDust ? rand(0.12, 0.34) : rand(0.28, 0.96),
       drift: rand(0, Math.PI * 2),
       outerDust,
     });
@@ -673,13 +667,13 @@ function buildCakePoints() {
     }
   };
 
-  addCakeLayer({ cx: 0, top: 0.13, width: 1.03, height: 0.38, topRy: 0.12, bodyCount: 1850, topCount: 1280, bottomCount: 900, palette: blue });
-  addCakeLayer({ cx: 0, top: -0.18, width: 0.74, height: 0.32, topRy: 0.105, bodyCount: 1500, topCount: 1080, bottomCount: 760, palette: white });
-  addCakeLayer({ cx: 0, top: -0.46, width: 0.48, height: 0.27, topRy: 0.085, bodyCount: 1050, topCount: 820, bottomCount: 560, palette: blue });
+  addCakeLayer({ cx: 0, top: 0.14, width: 1.08, height: 0.36, topRy: 0.12, bodyCount: 1900, topCount: 1320, bottomCount: 920, palette: blue });
+  addCakeLayer({ cx: 0, top: -0.15, width: 0.8, height: 0.3, topRy: 0.105, bodyCount: 1580, topCount: 1120, bottomCount: 780, palette: white });
+  addCakeLayer({ cx: 0, top: -0.4, width: 0.54, height: 0.24, topRy: 0.086, bodyCount: 1180, topCount: 900, bottomCount: 640, palette: blue });
 
-  addRect(0, -0.43, 0.38, 0.035, 260, edgeWhite);
-  addRect(0, -0.15, 0.64, 0.04, 320, blue);
-  addRect(0, 0.16, 0.92, 0.045, 400, edgeWhite);
+  addRect(0, -0.39, 0.42, 0.035, 300, edgeWhite);
+  addRect(0, -0.14, 0.68, 0.04, 380, blue);
+  addRect(0, 0.16, 0.96, 0.045, 460, edgeWhite);
 
   return points;
 }
@@ -942,9 +936,9 @@ function updateTimeline(t) {
     return;
   }
 
-  if (elapsed < 5.05) {
+  if (elapsed < 6.85) {
     state.stage = "countdown";
-    const digit = String(Math.max(1, 5 - Math.floor(elapsed)));
+    const digit = String(Math.max(1, 5 - Math.floor(elapsed / 1.35)));
     if (state.stageCue !== `text:${digit}`) {
       statusEl.textContent = `${digit}...`;
       assignTextShape(digit, 280, true);
@@ -954,7 +948,7 @@ function updateTimeline(t) {
     return;
   }
 
-  if (elapsed < 7.15) {
+  if (elapsed < 9.15) {
     state.stage = "birthdayText";
     if (state.stageCue !== "text:生日快乐") {
       statusEl.textContent = "生日快乐";
@@ -965,7 +959,7 @@ function updateTimeline(t) {
     return;
   }
 
-  if (elapsed < 10.85) {
+  if (elapsed < 12.85) {
     state.stage = "fireworks";
     if (state.stageCue !== "scatter") {
       statusEl.textContent = "烟花升空";
@@ -984,7 +978,7 @@ function updateTimeline(t) {
     statusEl.textContent = "蛋糕正在靠近";
     assignCakeShape();
   }
-  const progress = clamp((elapsed - 10.85) / 5.2, 0, 1);
+  const progress = clamp((elapsed - 12.85) / 5.2, 0, 1);
   state.cakeProgress = progress;
   updateCakeTargets(progress);
   updateMorphParticles(t, 0.034 + progress * 0.03);
@@ -1123,7 +1117,7 @@ function triggerExplode() {
   document.body.classList.add("gift-started", "gift-ready");
   document.body.classList.remove("photo-sphere-active", "cake-ready-active");
   state.stage = "fireworks";
-  state.timelineStart = performance.now() - 7150;
+  state.timelineStart = performance.now() - 9150;
   assignScatter();
   for (let i = 0; i < (perf.mobile ? 2 : 5); i += 1) spawnRocket(performance.now());
   statusEl.textContent = "再次放烟花";
@@ -1135,7 +1129,7 @@ function showCakeFinal() {
   document.body.classList.add("cake-ready-active");
   state.stage = "cake";
   state.stageCue = "";
-  state.timelineStart = performance.now() - 17000;
+  state.timelineStart = performance.now() - 19000;
   assignCakeShape();
   updateCakeTargets(1);
   statusEl.textContent = "回到生日蛋糕";
@@ -1149,7 +1143,7 @@ function mergeToCake() {
   state.stageCue = "";
   state.selectedPhoto = -1;
   state.selectedZoom = 1;
-  state.timelineStart = performance.now() - 10850;
+  state.timelineStart = performance.now() - 12850;
   assignCakeShape();
   statusEl.textContent = "照片星球正在聚合成蛋糕";
 }
@@ -1162,8 +1156,6 @@ function toggleMood() {
 }
 
 function updateMoodButtons() {
-  const label = state.tone === "noir" ? "彩色宇宙" : "黑白电影";
-  moodBtn.textContent = label;
 }
 
 async function toggleCamera() {
@@ -1196,8 +1188,6 @@ function stopCamera() {
 }
 
 function updateCameraButtons() {
-  const label = state.cameraOn ? "关闭摄像头" : "开启摄像头";
-  cameraBtn.textContent = label;
 }
 
 function trackHand() {
@@ -1327,10 +1317,6 @@ function bindEvents() {
   document.addEventListener("keydown", playBackgroundMusic, { once: true });
   photoWallBtn.addEventListener("click", scatterToPhotoWall);
   cakeMergeBtn.addEventListener("click", mergeToCake);
-  explodeBtn.addEventListener("click", triggerExplode);
-  cakeBtn.addEventListener("click", showCakeFinal);
-  moodBtn.addEventListener("click", toggleMood);
-  cameraBtn.addEventListener("click", toggleCamera);
   photoInput.addEventListener("change", (event) => {
     const [file] = event.target.files;
     if (file) loadPhoto(file);
