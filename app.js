@@ -39,15 +39,15 @@ const morphParticles = [];
 const fireworks = [];
 const rockets = [];
 let photoSources = [
-  "image-web/photo-01.jpg",
-  "image-web/photo-02.jpg",
-  "image-web/photo-03.jpg",
-  "image-web/photo-04.jpg",
-  "image-web/photo-05.jpg",
-  "image-web/photo-06.jpg",
-  "image-web/photo-07.jpg",
-  "image-web/photo-08.jpg",
-  "image-web/photo-09.jpg",
+  "./image-web/photo-01.jpg",
+  "./image-web/photo-02.jpg",
+  "./image-web/photo-03.jpg",
+  "./image-web/photo-04.jpg",
+  "./image-web/photo-05.jpg",
+  "./image-web/photo-06.jpg",
+  "./image-web/photo-07.jpg",
+  "./image-web/photo-08.jpg",
+  "./image-web/photo-09.jpg",
 ];
 const photoImages = [];
 const photoCards = [];
@@ -709,12 +709,21 @@ function retargetCurrentCue() {
   }
 }
 
-function updateCakeTargets(progress) {
+function updateCakeTargets(progress, t = performance.now()) {
   const { zoom, cx, cy } = getCakeLayout(progress);
+  const breathe = 1 + Math.sin(t * 0.0014) * 0.018;
+  const floatY = Math.sin(t * 0.0011) * zoom * 0.01;
+  const roll = Math.sin(t * 0.00062) * 0.018;
+  const pitch = Math.sin(t * 0.00048) * 0.014;
+  const cos = Math.cos(roll);
+  const sin = Math.sin(roll);
   for (const particle of morphParticles) {
     if (!particle.cakePoint) continue;
-    particle.tx = cx + particle.cakePoint.nx * zoom;
-    particle.ty = cy + particle.cakePoint.ny * zoom;
+    const baseX = particle.cakePoint.nx * zoom * breathe;
+    const baseY = particle.cakePoint.ny * zoom * (1 - pitch);
+    particle.tx = cx + baseX * cos - baseY * sin;
+    particle.ty = cy + baseX * sin + baseY * cos + floatY;
+    particle.stageAlpha = particle.cakePoint.role === "edge" ? 1 : 0.92 + Math.sin(t * 0.0022 + particle.jitter) * 0.08;
   }
 }
 
@@ -834,7 +843,7 @@ function updateTimeline(t) {
   }
   const progress = clamp((elapsed - 12.85) / 5.2, 0, 1);
   state.cakeProgress = progress;
-  updateCakeTargets(progress);
+  updateCakeTargets(progress, t);
   updateMorphParticles(t, 0.034 + progress * 0.03);
   drawMorphParticles(1);
   drawCakeEntities(t, progress);
