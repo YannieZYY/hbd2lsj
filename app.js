@@ -4,14 +4,11 @@ const bgMusic = document.querySelector("#bgMusic");
 const startGiftBtn = document.querySelector("#startGiftBtn");
 const photoWallBtn = document.querySelector("#photoWallBtn");
 const cakeMergeBtn = document.querySelector("#cakeMergeBtn");
-const photoInput = document.querySelector("#photoInput");
-const messageInput = document.querySelector("#messageInput");
-const nameInput = document.querySelector("#nameInput");
-const letterInput = document.querySelector("#letterInput");
-const zoomRange = document.querySelector("#zoomRange");
-const sparkRange = document.querySelector("#sparkRange");
 const statusEl = document.querySelector("#status");
-const video = document.querySelector("#camera");
+
+const birthdayMessage = "生日快乐";
+const birthdayName = "My Love";
+const sparkMultiplier = 1.15;
 
 const storageKey = "birthday-cosmos-config-v2";
 try { localStorage.removeItem(storageKey); } catch (error) {}
@@ -27,9 +24,6 @@ const state = {
   tone: "cosmos",
   timelineStart: 0,
   cakeProgress: 0,
-  photoData: "",
-  cameraOn: false,
-  lastGesture: 0,
   sphereRotX: -0.12,
   sphereRotY: 0,
   dragging: false,
@@ -38,7 +32,6 @@ const state = {
   dragY: 0,
   selectedPhoto: -1,
   selectedZoom: 1,
-  hand: { active: false, x: 0.5, y: 0.45, size: 0, lastSize: 0 },
 };
 
 const stars = [];
@@ -56,42 +49,11 @@ let photoSources = [
   "image-web/photo-08.jpg",
   "image-web/photo-09.jpg",
 ];
-const fallbackPhotoSources = [
-  "image/IMG_1423.JPG",
-  "image/IMG_1057.JPG",
-  "image/微信图片_20260820130215_723_84.jpg",
-  "image/SHDR_147592025_1766752975308.JPG",
-  "image/微信图片_20260820130203_722_84.jpg",
-  "image/SHDR_147574342_1766678326119.JPG",
-  "image/微信图片_20260820130225_725_84.jpg",
-  "image/微信图片_20260820130222_724_84.png",
-  "image/微信图片_20260820130232_726_84.jpg",
-];
 const photoImages = [];
 const photoCards = [];
 const nebulaBits = [];
 const shapeCanvas = document.createElement("canvas");
 const shapeCtx = shapeCanvas.getContext("2d", { willReadFrequently: true });
-const probeCanvas = document.createElement("canvas");
-const probeCtx = probeCanvas.getContext("2d", { willReadFrequently: true });
-const isSmallScreen = Math.min(window.innerWidth, window.innerHeight, screen.width || 9999, screen.height || 9999) <= 760;
-const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
-const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-const perf = {
-  mobile: isSmallScreen || isCoarsePointer,
-  dprCap: isSmallScreen || isCoarsePointer ? 1 : 1.5,
-  targetFps: isSmallScreen || isCoarsePointer || prefersReducedMotion ? 30 : 60,
-  particleCount: isSmallScreen || isCoarsePointer ? 5200 : 9800,
-  starCount: isSmallScreen || isCoarsePointer ? 120 : 240,
-  nebulaCount: isSmallScreen || isCoarsePointer ? 760 : 1300,
-  introAuraCount: isSmallScreen || isCoarsePointer ? 72 : 160,
-  photoTextureLong: isSmallScreen || isCoarsePointer ? 720 : 1200,
-  fireworkScale: isSmallScreen || isCoarsePointer ? 0.42 : 0.72,
-};
-let lastFrameTime = 0;
-let launchPending = false;
-let photoLoadPromise = Promise.resolve();
-let lastMusicCheck = 0;
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -108,25 +70,13 @@ function playBackgroundMusic() {
   bgMusic.play().catch(() => {});
 }
 
-function warmupBackgroundMusic() {
-  if (!bgMusic) return;
-  bgMusic.preload = "auto";
-  bgMusic.load();
-}
-
-function keepBackgroundMusicAlive(t) {
-  if (!bgMusic || state.stage === "intro" || t - lastMusicCheck < 1800) return;
-  lastMusicCheck = t;
-  if (bgMusic.paused) playBackgroundMusic();
-}
-
 function easeOutCubic(x) {
   return 1 - Math.pow(1 - clamp(x, 0, 1), 3);
 }
 
 function fitCanvas() {
   const rect = canvas.getBoundingClientRect();
-  state.dpr = Math.min(window.devicePixelRatio || 1, perf.dprCap);
+  state.dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.max(1, Math.floor(rect.width * state.dpr));
   canvas.height = Math.max(1, Math.floor(rect.height * state.dpr));
   state.width = rect.width;
@@ -148,7 +98,7 @@ function applySavedConfig() {
 
 function initStars() {
   stars.length = 0;
-  for (let i = 0; i < perf.starCount; i += 1) {
+  for (let i = 0; i < 620; i += 1) {
     stars.push({
       x: Math.random(),
       y: Math.random(),
@@ -163,7 +113,7 @@ function initMorphParticles() {
   morphParticles.length = 0;
   const cx = state.width * 0.5;
   const cy = state.height * 0.5;
-  for (let i = 0; i < perf.particleCount; i += 1) {
+  for (let i = 0; i < 15000; i += 1) {
     morphParticles.push({
       x: cx + rand(-90, 90),
       y: cy + rand(-70, 70),
@@ -182,96 +132,11 @@ function initMorphParticles() {
 
 function initPhotoAssets() {
   photoImages.length = 0;
-  const loadTasks = [];
-  for (let i = 0; i < photoSources.length; i += 1) {
-    const src = photoSources[i];
+  for (const src of photoSources) {
     const image = new Image();
-    image.decoding = "async";
-    image.loadPromise = preparePhotoImage(image, src, fallbackPhotoSources[i], i);
     image.src = src;
     photoImages.push(image);
-    loadTasks.push(image.loadPromise);
   }
-  photoLoadPromise = Promise.allSettled(loadTasks);
-  return photoLoadPromise;
-}
-
-function createPhotoTexture(image) {
-  if (!image.naturalWidth || !image.naturalHeight) return image;
-  const longSide = Math.max(image.naturalWidth, image.naturalHeight);
-  const scale = Math.min(1, perf.photoTextureLong / longSide);
-  if (scale >= 1) return image;
-  const texture = document.createElement("canvas");
-  texture.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  texture.height = Math.max(1, Math.round(image.naturalHeight * scale));
-  const textureCtx = texture.getContext("2d", { alpha: false });
-  textureCtx.imageSmoothingQuality = "medium";
-  textureCtx.drawImage(image, 0, 0, texture.width, texture.height);
-  return texture;
-}
-
-function preparePhotoImage(image, src, fallbackSrc, index) {
-  return new Promise((resolve) => {
-    let resolved = false;
-    let triedFallback = false;
-    const finish = () => {
-      if (resolved) return;
-      resolved = true;
-      resolve(image);
-    };
-
-    image.onload = async () => {
-      try {
-        await image.decode?.();
-      } catch (error) {}
-      image.texture = createPhotoTexture(image);
-      finish();
-    };
-
-    image.onerror = () => {
-      if (!triedFallback && fallbackSrc && fallbackSrc !== src) {
-        triedFallback = true;
-        image.src = fallbackSrc;
-        return;
-      }
-      image.texture = createMissingPhotoTexture(index);
-      finish();
-    };
-
-    window.setTimeout(() => {
-      if (!resolved && !image.complete) {
-        image.texture = createMissingPhotoTexture(index);
-        finish();
-      }
-    }, perf.mobile ? 4800 : 7000);
-  });
-}
-
-function createMissingPhotoTexture(index) {
-  const texture = document.createElement("canvas");
-  texture.width = 480;
-  texture.height = 640;
-  const textureCtx = texture.getContext("2d", { alpha: false });
-  const gradient = textureCtx.createLinearGradient(0, 0, texture.width, texture.height);
-  gradient.addColorStop(0, "#123447");
-  gradient.addColorStop(1, "#07141f");
-  textureCtx.fillStyle = gradient;
-  textureCtx.fillRect(0, 0, texture.width, texture.height);
-  textureCtx.strokeStyle = "rgba(120, 240, 255, 0.9)";
-  textureCtx.lineWidth = 8;
-  textureCtx.strokeRect(26, 26, texture.width - 52, texture.height - 52);
-  textureCtx.fillStyle = "rgba(180, 248, 255, 0.9)";
-  textureCtx.font = "700 44px sans-serif";
-  textureCtx.textAlign = "center";
-  textureCtx.fillText(`照片 ${index + 1}`, texture.width / 2, texture.height / 2);
-  return texture;
-}
-
-function waitForPhotos(maxWait = 1800) {
-  return Promise.race([
-    photoLoadPromise,
-    new Promise((resolve) => window.setTimeout(resolve, maxWait)),
-  ]);
 }
 
 async function loadPhotoConfig() {
@@ -307,18 +172,18 @@ function initPhotoSphere() {
       sh: 0,
     });
   }
-  for (let i = 0; i < perf.nebulaCount; i += 1) {
+  for (let i = 0; i < 2800; i += 1) {
     const theta = rand(0, Math.PI * 2);
     const y = rand(-0.95, 0.95);
-    const outerDust = Math.random() > 0.9;
-    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.02, 1.18) : rand(0.58, 1.03));
+    const outerDust = Math.random() > 0.82;
+    const radius = Math.sqrt(1 - y * y) * (outerDust ? rand(1.06, 1.42) : rand(0.72, 1.08));
     nebulaBits.push({
       x: Math.cos(theta) * radius,
       y: y * rand(0.62, 1.05),
       z: Math.sin(theta) * radius,
-      size: outerDust ? rand(0.28, 0.82) : rand(0.55, 1.95),
+      size: outerDust ? rand(0.28, 0.9) : rand(0.48, 1.85),
       hue: [186, 198, 218, 235, 172][Math.floor(Math.random() * 5)],
-      alpha: outerDust ? rand(0.12, 0.34) : rand(0.28, 0.96),
+      alpha: outerDust ? rand(0.1, 0.38) : rand(0.22, 0.9),
       drift: rand(0, Math.PI * 2),
       outerDust,
     });
@@ -379,8 +244,7 @@ function drawPhotoExplosion(t) {
 function drawPhotoCard(card, index, t, radius) {
   const p = projectSpherePoint(card, radius);
   const selected = state.selectedPhoto === index;
-  const drawable = card.image?.texture || card.image;
-  const imageRatio = drawable?.width && drawable?.height ? drawable.width / drawable.height : 0.72;
+  const imageRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
   const selectedLong = Math.min(Math.min(state.width, state.height) * 0.42, 330);
   const baseLong = selected ? selectedLong * state.selectedZoom : 120;
   const baseW = imageRatio >= 1 ? baseLong : baseLong * imageRatio;
@@ -397,7 +261,7 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.translate(p.x, p.y);
   ctx.rotate(selected ? 0 : card.spin + Math.sin(t * 0.001 + index) * 0.04);
   ctx.shadowColor = selected ? "rgba(95, 240, 255, 0.9)" : "rgba(42, 220, 245, 0.5)";
-  ctx.shadowBlur = perf.mobile ? selected ? 10 : 0 : selected ? 22 : 10;
+  ctx.shadowBlur = selected ? 22 : 10;
   ctx.fillStyle = "rgba(6, 18, 34, 0.88)";
   ctx.strokeStyle = selected ? "rgba(167, 252, 255, 0.95)" : "rgba(88, 230, 255, 0.64)";
   ctx.lineWidth = selected ? 3 : 1.5;
@@ -405,9 +269,9 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.roundRect(-w / 2, -h / 2, w, h, 4);
   ctx.fill();
   ctx.stroke();
-  if (drawable && drawable.width > 0 && drawable.height > 0) {
+  if (card.image?.complete && card.image.naturalWidth > 0) {
     const inset = selected ? 8 : 4;
-    ctx.drawImage(drawable, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
+    ctx.drawImage(card.image, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
   }
   ctx.restore();
 }
@@ -534,7 +398,7 @@ function drawIntroAura(t) {
   const cx = state.width * 0.5;
   const cy = state.height * 0.5;
   const power = 0.7 + Math.sin(t * 0.002) * 0.18;
-  for (let i = 0; i < perf.introAuraCount; i += 1) {
+  for (let i = 0; i < 240; i += 1) {
     const a = i * 0.34 + t * 0.00022;
     const r = 44 + (i % 60) * 2.6 + Math.sin(t * 0.001 + i) * 20;
     const x = cx + Math.cos(a) * r;
@@ -577,12 +441,11 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
     size -= 4;
   } while (shapeCtx.measureText(text).width > w * maxWidthRatio && size > 34);
   shapeCtx.shadowColor = "rgba(66, 229, 255, 0.8)";
-  shapeCtx.shadowBlur = perf.mobile ? Math.min(shadowBlur, 6) : shadowBlur;
+  shapeCtx.shadowBlur = shadowBlur;
   shapeCtx.fillStyle = "#8eeeff";
   shapeCtx.fillText(text, w / 2, h / 2);
   shapeCtx.shadowBlur = 0;
-  const actualStep = perf.mobile ? Math.max(text.length === 1 ? 3 : sampleStep + 1, 4) : text.length === 1 ? 2 : sampleStep;
-  return sampleCanvasPoints(actualStep).map((p) => ({
+  return sampleCanvasPoints(text.length === 1 ? 2 : sampleStep).map((p) => ({
     dx: p.x - w / 2,
     dy: p.y - h / 2,
     color: p.color,
@@ -667,13 +530,13 @@ function buildCakePoints() {
     }
   };
 
-  addCakeLayer({ cx: 0, top: 0.14, width: 1.08, height: 0.36, topRy: 0.12, bodyCount: 1900, topCount: 1320, bottomCount: 920, palette: blue });
-  addCakeLayer({ cx: 0, top: -0.15, width: 0.8, height: 0.3, topRy: 0.105, bodyCount: 1580, topCount: 1120, bottomCount: 780, palette: white });
-  addCakeLayer({ cx: 0, top: -0.4, width: 0.54, height: 0.24, topRy: 0.086, bodyCount: 1180, topCount: 900, bottomCount: 640, palette: blue });
+  addCakeLayer({ cx: 0, top: 0.13, width: 1.03, height: 0.38, topRy: 0.12, bodyCount: 1850, topCount: 1280, bottomCount: 900, palette: blue });
+  addCakeLayer({ cx: 0, top: -0.18, width: 0.74, height: 0.32, topRy: 0.105, bodyCount: 1500, topCount: 1080, bottomCount: 760, palette: white });
+  addCakeLayer({ cx: 0, top: -0.46, width: 0.48, height: 0.27, topRy: 0.085, bodyCount: 1050, topCount: 820, bottomCount: 560, palette: blue });
 
-  addRect(0, -0.39, 0.42, 0.035, 300, edgeWhite);
-  addRect(0, -0.14, 0.68, 0.04, 380, blue);
-  addRect(0, 0.16, 0.96, 0.045, 460, edgeWhite);
+  addRect(0, -0.43, 0.38, 0.035, 260, edgeWhite);
+  addRect(0, -0.15, 0.64, 0.04, 320, blue);
+  addRect(0, 0.16, 0.92, 0.045, 400, edgeWhite);
 
   return points;
 }
@@ -739,7 +602,7 @@ function getCakeLayout(progress) {
 
 function drawCakeEntities(t, progress) {
   const { zoom, cx, cy } = getCakeLayout(progress);
-  const header = `${messageInput.value || "生日快乐"} ${nameInput.value || ""}`.trim();
+  const header = `${birthdayMessage} ${birthdayName}`.trim();
   let titleSize = clamp(zoom * 0.16, 18, 68);
   const titleY = cy - zoom * 0.98;
   const titleWidth = Math.min(state.width * 0.72, zoom * 1.38);
@@ -882,15 +745,8 @@ function drawMorphParticles(alpha = 1) {
 }
 
 function launchGift() {
-  if (state.stage !== "intro" || launchPending) return;
-  launchPending = true;
-  startGiftBtn.disabled = true;
-  playBackgroundMusic();
-  window.setTimeout(beginGiftTimeline, perf.mobile ? 220 : 80);
-}
-
-function beginGiftTimeline() {
   if (state.stage !== "intro") return;
+  playBackgroundMusic();
   document.body.classList.add("gift-started");
   document.body.classList.remove("gift-ready", "photo-sphere-active", "cake-ready-active");
   state.stage = "countdown";
@@ -898,18 +754,16 @@ function beginGiftTimeline() {
   state.stageCue = "";
   state.selectedPhoto = -1;
   state.selectedZoom = 1;
-  statusEl.textContent = "5 秒粒子倒计时开始";
+  statusEl.textContent = "5 秒慢速粒子倒计时开始";
   assignTextShape("5", 280, true);
 }
 
 function restartGift() {
-  launchPending = false;
   fireworks.length = 0;
   rockets.length = 0;
   document.body.classList.remove("gift-ready", "photo-sphere-active", "cake-ready-active");
   state.stage = "intro";
   state.stageCue = "";
-  startGiftBtn.disabled = false;
   startGiftBtn.style.display = "";
   statusEl.textContent = "点击开启礼物，进入生日星河";
 }
@@ -936,9 +790,9 @@ function updateTimeline(t) {
     return;
   }
 
-  if (elapsed < 6.85) {
+  if (elapsed < 7.05) {
     state.stage = "countdown";
-    const digit = String(Math.max(1, 5 - Math.floor(elapsed / 1.35)));
+    const digit = String(Math.max(1, 5 - Math.floor(elapsed / 1.4)));
     if (state.stageCue !== `text:${digit}`) {
       statusEl.textContent = `${digit}...`;
       assignTextShape(digit, 280, true);
@@ -964,9 +818,9 @@ function updateTimeline(t) {
     if (state.stageCue !== "scatter") {
       statusEl.textContent = "烟花升空";
       assignScatter();
-      for (let i = 0; i < (perf.mobile ? 2 : 4); i += 1) spawnRocket(t + i * 90);
+      for (let i = 0; i < 4; i += 1) spawnRocket(t + i * 90);
     }
-    if (Math.random() < 0.055 * Number(sparkRange.value) * perf.fireworkScale) spawnRocket(t);
+    if (Math.random() < 0.055 * sparkMultiplier) spawnRocket(t);
     updateMorphParticles(t, 0.004);
     drawMorphParticles(0.38);
     updateFireworks(t);
@@ -991,11 +845,8 @@ function updateTimeline(t) {
   }
 }
 
-async function scatterToPhotoWall() {
+function scatterToPhotoWall() {
   if (state.stage !== "cake") return;
-  playBackgroundMusic();
-  statusEl.textContent = "照片正在加载";
-  await waitForPhotos(perf.mobile ? 2600 : 1000);
   document.body.classList.remove("cake-ready-active", "gift-ready");
   state.stage = "photoExplode";
   state.stageCue = "";
@@ -1019,7 +870,7 @@ function spawnRocket(t) {
 }
 
 function explodeFirework(x, y, color) {
-  const count = Math.floor(rand(110, 190) * Number(sparkRange.value) * perf.fireworkScale);
+  const count = Math.floor(rand(110, 190) * sparkMultiplier);
   for (let i = 0; i < count; i += 1) {
     const a = rand(0, Math.PI * 2);
     const speed = rand(1.2, 8.2);
@@ -1088,51 +939,9 @@ function updateFireworks(t) {
 }
 
 function render(t = 0) {
-  const frameInterval = 1000 / perf.targetFps;
-  if (t - lastFrameTime < frameInterval) {
-    requestAnimationFrame(render);
-    return;
-  }
-  lastFrameTime = t;
-  keepBackgroundMusicAlive(t);
   drawBackground(t);
   updateTimeline(t);
-  if (state.hand.active) drawHandPointer();
   requestAnimationFrame(render);
-}
-
-function drawHandPointer() {
-  const hx = state.hand.x * state.width;
-  const hy = state.hand.y * state.height;
-  ctx.save();
-  ctx.strokeStyle = "rgba(102,227,180,.85)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(hx, hy, 18 + state.hand.size * 0.035, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function triggerExplode() {
-  document.body.classList.add("gift-started", "gift-ready");
-  document.body.classList.remove("photo-sphere-active", "cake-ready-active");
-  state.stage = "fireworks";
-  state.timelineStart = performance.now() - 9150;
-  assignScatter();
-  for (let i = 0; i < (perf.mobile ? 2 : 5); i += 1) spawnRocket(performance.now());
-  statusEl.textContent = "再次放烟花";
-}
-
-function showCakeFinal() {
-  document.body.classList.add("gift-started", "gift-ready");
-  document.body.classList.remove("photo-sphere-active");
-  document.body.classList.add("cake-ready-active");
-  state.stage = "cake";
-  state.stageCue = "";
-  state.timelineStart = performance.now() - 19000;
-  assignCakeShape();
-  updateCakeTargets(1);
-  statusEl.textContent = "回到生日蛋糕";
 }
 
 function mergeToCake() {
@@ -1146,108 +955,6 @@ function mergeToCake() {
   state.timelineStart = performance.now() - 12850;
   assignCakeShape();
   statusEl.textContent = "照片星球正在聚合成蛋糕";
-}
-
-function toggleMood() {
-  state.tone = state.tone === "noir" ? "cosmos" : "noir";
-  updateMoodButtons();
-  saveConfig();
-  statusEl.textContent = state.tone === "noir" ? "黑白电影感已开启" : "彩色宇宙已开启";
-}
-
-function updateMoodButtons() {
-}
-
-async function toggleCamera() {
-  if (state.cameraOn) {
-    stopCamera();
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
-    video.srcObject = stream;
-    video.classList.add("is-visible");
-    state.cameraOn = true;
-    updateCameraButtons();
-    statusEl.textContent = "摄像头已开启：手靠近镜头可触发动画";
-    requestAnimationFrame(trackHand);
-  } catch (error) {
-    statusEl.textContent = "摄像头未开启，请检查浏览器权限";
-  }
-}
-
-function stopCamera() {
-  const stream = video.srcObject;
-  if (stream) stream.getTracks().forEach((track) => track.stop());
-  video.srcObject = null;
-  video.classList.remove("is-visible");
-  state.cameraOn = false;
-  state.hand.active = false;
-  updateCameraButtons();
-  statusEl.textContent = "摄像头已关闭";
-}
-
-function updateCameraButtons() {
-}
-
-function trackHand() {
-  if (!state.cameraOn || video.readyState < 2) {
-    if (state.cameraOn) requestAnimationFrame(trackHand);
-    return;
-  }
-  const w = 112;
-  const h = 84;
-  probeCanvas.width = w;
-  probeCanvas.height = h;
-  probeCtx.save();
-  probeCtx.scale(-1, 1);
-  probeCtx.drawImage(video, -w, 0, w, h);
-  probeCtx.restore();
-  const frame = probeCtx.getImageData(0, 0, w, h).data;
-  let sx = 0;
-  let sy = 0;
-  let count = 0;
-  for (let y = 0; y < h; y += 2) {
-    for (let x = 0; x < w; x += 2) {
-      const i = (y * w + x) * 4;
-      const r = frame[i];
-      const g = frame[i + 1];
-      const b = frame[i + 2];
-      const max = Math.max(r, g, b);
-      const min = Math.min(r, g, b);
-      if (r > 72 && g > 40 && b > 28 && r > b * 1.08 && max - min > 18) {
-        sx += x;
-        sy += y;
-        count += 1;
-      }
-    }
-  }
-  if (count > 18) {
-    state.hand.active = true;
-    state.hand.x += (sx / count / w - state.hand.x) * 0.22;
-    state.hand.y += (sy / count / h - state.hand.y) * 0.22;
-    state.hand.lastSize = state.hand.size;
-    state.hand.size += (count - state.hand.size) * 0.18;
-    const enoughDelay = performance.now() - state.lastGesture > 1700;
-    if (state.hand.size - state.hand.lastSize > 12 && count > 160 && enoughDelay) {
-      state.lastGesture = performance.now();
-      if (state.stage === "intro") launchGift();
-      else triggerExplode();
-    }
-  } else {
-    state.hand.active = false;
-    state.hand.size *= 0.9;
-  }
-  requestAnimationFrame(trackHand);
-}
-
-function loadPhoto(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.photoData = reader.result;
-    statusEl.textContent = "照片仅在当前页面会话中使用，不会保存到浏览器存储";
-  };
-  reader.readAsDataURL(file);
 }
 
 function getCanvasPoint(event) {
@@ -1311,23 +1018,11 @@ function zoomSelectedPhoto(event) {
 }
 
 function bindEvents() {
-  startGiftBtn.addEventListener("pointerdown", playBackgroundMusic, { passive: true });
   startGiftBtn.addEventListener("click", launchGift);
   document.addEventListener("pointerdown", playBackgroundMusic, { once: true });
   document.addEventListener("keydown", playBackgroundMusic, { once: true });
   photoWallBtn.addEventListener("click", scatterToPhotoWall);
   cakeMergeBtn.addEventListener("click", mergeToCake);
-  photoInput.addEventListener("change", (event) => {
-    const [file] = event.target.files;
-    if (file) loadPhoto(file);
-  });
-  [messageInput, nameInput, letterInput, sparkRange].forEach((control) => {
-    control.addEventListener("input", () => {
-      saveConfig();
-      if (state.stage === "cake" || state.stageCue === "cake") assignCakeShape();
-    });
-  });
-  zoomRange.addEventListener("input", () => saveConfig());
   canvas.addEventListener("pointerdown", beginSphereDrag);
   canvas.addEventListener("pointermove", moveSphereDrag);
   canvas.addEventListener("pointerup", endSphereDrag);
@@ -1338,7 +1033,6 @@ function bindEvents() {
 window.addEventListener("resize", fitCanvas);
 
 async function startApp() {
-  warmupBackgroundMusic();
   applySavedConfig();
   fitCanvas();
   initStars();

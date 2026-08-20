@@ -11,7 +11,6 @@
       <section class="stage-wrap" aria-label="生日照片星球">
         <canvas id="scene" width="1280" height="900"></canvas>
         <audio id="bgMusic" src="./bgm/hbd_csr.mp3" loop preload="auto"></audio>
-        <video id="camera" autoplay playsinline muted></video>
         <button id="startGiftBtn" class="start-gift" type="button">开启礼物</button>
         <button id="photoWallBtn" class="sphere-action cake-action" type="button">散开照片墙</button>
         <button id="cakeMergeBtn" class="sphere-action" type="button">聚合成蛋糕</button>
@@ -19,15 +18,6 @@
           <div class="status" id="status">点击开启照片星球</div>
         </div>
       </section>
-
-      <aside class="panel" aria-hidden="true">
-        <input id="photoInput" type="file" accept="image/*" />
-        <input id="messageInput" value="生日快乐" maxlength="18" />
-        <input id="nameInput" value="My Love" maxlength="16" />
-        <textarea id="letterInput" maxlength="46">愿你永远被爱包围。</textarea>
-        <input id="zoomRange" type="range" min="0.45" max="2.2" step="0.01" value="1" />
-        <input id="sparkRange" type="range" min="0.5" max="2" step="0.05" value="1.15" />
-      </aside>
     </main>
 
     <script src="./app.js"></script>
