@@ -54,15 +54,15 @@ const morphParticles = [];
 const fireworks = [];
 const rockets = [];
 let photoSources = [
-  "image/IMG_1423.JPG",
-  "image/IMG_1057.JPG",
-  "image/微信图片_20260820130215_723_84.jpg",
-  "image/SHDR_147592025_1766752975308.JPG",
-  "image/微信图片_20260820130203_722_84.jpg",
-  "image/SHDR_147574342_1766678326119.JPG",
-  "image/微信图片_20260820130225_725_84.jpg",
-  "image/微信图片_20260820130222_724_84.png",
-  "image/微信图片_20260820130232_726_84.jpg",
+  "image-web/photo-01.jpg",
+  "image-web/photo-02.jpg",
+  "image-web/photo-03.jpg",
+  "image-web/photo-04.jpg",
+  "image-web/photo-05.jpg",
+  "image-web/photo-06.jpg",
+  "image-web/photo-07.jpg",
+  "image-web/photo-08.jpg",
+  "image-web/photo-09.jpg",
 ];
 const photoImages = [];
 const photoCards = [];
@@ -71,6 +71,21 @@ const shapeCanvas = document.createElement("canvas");
 const shapeCtx = shapeCanvas.getContext("2d", { willReadFrequently: true });
 const probeCanvas = document.createElement("canvas");
 const probeCtx = probeCanvas.getContext("2d", { willReadFrequently: true });
+const isSmallScreen = Math.min(window.innerWidth, window.innerHeight, screen.width || 9999, screen.height || 9999) <= 760;
+const isCoarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+const perf = {
+  mobile: isSmallScreen || isCoarsePointer,
+  dprCap: isSmallScreen || isCoarsePointer ? 1 : 1.5,
+  targetFps: isSmallScreen || isCoarsePointer || prefersReducedMotion ? 30 : 60,
+  particleCount: isSmallScreen || isCoarsePointer ? 5200 : 9800,
+  starCount: isSmallScreen || isCoarsePointer ? 120 : 240,
+  nebulaCount: isSmallScreen || isCoarsePointer ? 360 : 900,
+  introAuraCount: isSmallScreen || isCoarsePointer ? 72 : 160,
+  photoTextureLong: isSmallScreen || isCoarsePointer ? 720 : 1200,
+  fireworkScale: isSmallScreen || isCoarsePointer ? 0.42 : 0.72,
+};
+let lastFrameTime = 0;
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
@@ -93,7 +108,7 @@ function easeOutCubic(x) {
 
 function fitCanvas() {
   const rect = canvas.getBoundingClientRect();
-  state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+  state.dpr = Math.min(window.devicePixelRatio || 1, perf.dprCap);
   canvas.width = Math.max(1, Math.floor(rect.width * state.dpr));
   canvas.height = Math.max(1, Math.floor(rect.height * state.dpr));
   state.width = rect.width;
@@ -117,7 +132,7 @@ function applySavedConfig() {
 
 function initStars() {
   stars.length = 0;
-  for (let i = 0; i < 360; i += 1) {
+  for (let i = 0; i < perf.starCount; i += 1) {
     stars.push({
       x: Math.random(),
       y: Math.random(),
@@ -132,7 +147,7 @@ function initMorphParticles() {
   morphParticles.length = 0;
   const cx = state.width * 0.5;
   const cy = state.height * 0.5;
-  for (let i = 0; i < 15000; i += 1) {
+  for (let i = 0; i < perf.particleCount; i += 1) {
     morphParticles.push({
       x: cx + rand(-90, 90),
       y: cy + rand(-70, 70),
@@ -153,9 +168,27 @@ function initPhotoAssets() {
   photoImages.length = 0;
   for (const src of photoSources) {
     const image = new Image();
+    image.decoding = "async";
+    image.onload = () => {
+      image.texture = createPhotoTexture(image);
+    };
     image.src = src;
     photoImages.push(image);
   }
+}
+
+function createPhotoTexture(image) {
+  if (!image.naturalWidth || !image.naturalHeight) return image;
+  const longSide = Math.max(image.naturalWidth, image.naturalHeight);
+  const scale = Math.min(1, perf.photoTextureLong / longSide);
+  if (scale >= 1) return image;
+  const texture = document.createElement("canvas");
+  texture.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  texture.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const textureCtx = texture.getContext("2d", { alpha: false });
+  textureCtx.imageSmoothingQuality = "medium";
+  textureCtx.drawImage(image, 0, 0, texture.width, texture.height);
+  return texture;
 }
 
 async function loadPhotoConfig() {
@@ -191,7 +224,7 @@ function initPhotoSphere() {
       sh: 0,
     });
   }
-  for (let i = 0; i < 1500; i += 1) {
+  for (let i = 0; i < perf.nebulaCount; i += 1) {
     const theta = rand(0, Math.PI * 2);
     const y = rand(-0.95, 0.95);
     const outerDust = Math.random() > 0.82;
@@ -263,7 +296,8 @@ function drawPhotoExplosion(t) {
 function drawPhotoCard(card, index, t, radius) {
   const p = projectSpherePoint(card, radius);
   const selected = state.selectedPhoto === index;
-  const imageRatio = card.image?.naturalWidth && card.image?.naturalHeight ? card.image.naturalWidth / card.image.naturalHeight : 0.72;
+  const drawable = card.image?.texture || card.image;
+  const imageRatio = drawable?.width && drawable?.height ? drawable.width / drawable.height : 0.72;
   const selectedLong = Math.min(Math.min(state.width, state.height) * 0.42, 330);
   const baseLong = selected ? selectedLong * state.selectedZoom : 120;
   const baseW = imageRatio >= 1 ? baseLong : baseLong * imageRatio;
@@ -280,7 +314,7 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.translate(p.x, p.y);
   ctx.rotate(selected ? 0 : card.spin + Math.sin(t * 0.001 + index) * 0.04);
   ctx.shadowColor = selected ? "rgba(95, 240, 255, 0.9)" : "rgba(42, 220, 245, 0.5)";
-  ctx.shadowBlur = selected ? 22 : 10;
+  ctx.shadowBlur = perf.mobile ? selected ? 10 : 0 : selected ? 22 : 10;
   ctx.fillStyle = "rgba(6, 18, 34, 0.88)";
   ctx.strokeStyle = selected ? "rgba(167, 252, 255, 0.95)" : "rgba(88, 230, 255, 0.64)";
   ctx.lineWidth = selected ? 3 : 1.5;
@@ -288,9 +322,9 @@ function drawPhotoCard(card, index, t, radius) {
   ctx.roundRect(-w / 2, -h / 2, w, h, 4);
   ctx.fill();
   ctx.stroke();
-  if (card.image?.complete && card.image.naturalWidth > 0) {
+  if (drawable && card.image?.complete && card.image.naturalWidth > 0) {
     const inset = selected ? 8 : 4;
-    ctx.drawImage(card.image, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
+    ctx.drawImage(drawable, -w / 2 + inset, -h / 2 + inset, w - inset * 2, h - inset * 2);
   }
   ctx.restore();
 }
@@ -417,7 +451,7 @@ function drawIntroAura(t) {
   const cx = state.width * 0.5;
   const cy = state.height * 0.5;
   const power = 0.7 + Math.sin(t * 0.002) * 0.18;
-  for (let i = 0; i < 240; i += 1) {
+  for (let i = 0; i < perf.introAuraCount; i += 1) {
     const a = i * 0.34 + t * 0.00022;
     const r = 44 + (i % 60) * 2.6 + Math.sin(t * 0.001 + i) * 20;
     const x = cx + Math.cos(a) * r;
@@ -460,11 +494,12 @@ function buildTextPoints(text, fontSize, maxWidthRatio = 0.82, fontWeight = 900,
     size -= 4;
   } while (shapeCtx.measureText(text).width > w * maxWidthRatio && size > 34);
   shapeCtx.shadowColor = "rgba(66, 229, 255, 0.8)";
-  shapeCtx.shadowBlur = shadowBlur;
+  shapeCtx.shadowBlur = perf.mobile ? Math.min(shadowBlur, 6) : shadowBlur;
   shapeCtx.fillStyle = "#8eeeff";
   shapeCtx.fillText(text, w / 2, h / 2);
   shapeCtx.shadowBlur = 0;
-  return sampleCanvasPoints(text.length === 1 ? 2 : sampleStep).map((p) => ({
+  const actualStep = perf.mobile ? Math.max(text.length === 1 ? 3 : sampleStep + 1, 4) : text.length === 1 ? 2 : sampleStep;
+  return sampleCanvasPoints(actualStep).map((p) => ({
     dx: p.x - w / 2,
     dy: p.y - h / 2,
     color: p.color,
@@ -837,9 +872,9 @@ function updateTimeline(t) {
     if (state.stageCue !== "scatter") {
       statusEl.textContent = "烟花升空";
       assignScatter();
-      for (let i = 0; i < 4; i += 1) spawnRocket(t + i * 90);
+      for (let i = 0; i < (perf.mobile ? 2 : 4); i += 1) spawnRocket(t + i * 90);
     }
-    if (Math.random() < 0.055 * Number(sparkRange.value)) spawnRocket(t);
+    if (Math.random() < 0.055 * Number(sparkRange.value) * perf.fireworkScale) spawnRocket(t);
     updateMorphParticles(t, 0.004);
     drawMorphParticles(0.38);
     updateFireworks(t);
@@ -889,7 +924,7 @@ function spawnRocket(t) {
 }
 
 function explodeFirework(x, y, color) {
-  const count = Math.floor(rand(110, 190) * Number(sparkRange.value));
+  const count = Math.floor(rand(110, 190) * Number(sparkRange.value) * perf.fireworkScale);
   for (let i = 0; i < count; i += 1) {
     const a = rand(0, Math.PI * 2);
     const speed = rand(1.2, 8.2);
@@ -958,6 +993,12 @@ function updateFireworks(t) {
 }
 
 function render(t = 0) {
+  const frameInterval = 1000 / perf.targetFps;
+  if (t - lastFrameTime < frameInterval) {
+    requestAnimationFrame(render);
+    return;
+  }
+  lastFrameTime = t;
   drawBackground(t);
   updateTimeline(t);
   if (state.hand.active) drawHandPointer();
@@ -982,7 +1023,7 @@ function triggerExplode() {
   state.stage = "fireworks";
   state.timelineStart = performance.now() - 7150;
   assignScatter();
-  for (let i = 0; i < 5; i += 1) spawnRocket(performance.now());
+  for (let i = 0; i < (perf.mobile ? 2 : 5); i += 1) spawnRocket(performance.now());
   statusEl.textContent = "再次放烟花";
 }
 
